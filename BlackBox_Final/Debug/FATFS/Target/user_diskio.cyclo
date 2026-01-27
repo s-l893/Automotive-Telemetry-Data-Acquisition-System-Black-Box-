@@ -1,0 +1,11 @@
+../FATFS/Target/user_diskio.c:58:16:SPI_RxByte	1
+../FATFS/Target/user_diskio.c:65:13:SPI_TxByte	1
+../FATFS/Target/user_diskio.c:69:13:SELECT	1
+../FATFS/Target/user_diskio.c:73:13:DESELECT	1
+../FATFS/Target/user_diskio.c:78:16:wait_ready	3
+../FATFS/Target/user_diskio.c:89:16:send_cmd	10
+../FATFS/Target/user_diskio.c:157:9:USER_initialize	7
+../FATFS/Target/user_diskio.c:188:9:USER_status	1
+../FATFS/Target/user_diskio.c:205:9:USER_read	6
+../FATFS/Target/user_diskio.c:239:9:USER_write	6
+../FATFS/Target/user_diskio.c:279:9:USER_ioctl	7
