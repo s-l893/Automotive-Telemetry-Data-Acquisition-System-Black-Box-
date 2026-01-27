@@ -1,0 +1,22 @@
+# --- STM32 Build & IDE Junk ---
+Debug/
+Release/
+bin/
+obj/
+*.bak
+*.tmp
+.settings/
+.project
+.cproject
+.mxproject
+
+# --- Python Environment ---
+# Ignore the virtual environment folder
+tools/map_env/
+__pycache__/
+*.py[cod]
+
+# --- Data & Outputs ---
+# Don't upload your raw CSV logs or the generated HTML maps
+*.csv
+*.html

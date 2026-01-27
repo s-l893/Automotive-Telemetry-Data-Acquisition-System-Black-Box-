@@ -1,7 +1,0 @@
-../Core/Src/main.c:107:1:__io_putchar	1
-../Core/Src/main.c:112:7:nmea_to_dec	1
-../Core/Src/main.c:118:6:process_gps_line	13
-../Core/Src/main.c:140:5:main	25
-../Core/Src/main.c:419:6:SystemClock_Config	3
-../Core/Src/main.c:466:6:HAL_GPIO_EXTI_Callback	2
-../Core/Src/main.c:480:6:Error_Handler	1
