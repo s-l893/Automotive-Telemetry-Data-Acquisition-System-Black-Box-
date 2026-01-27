@@ -1,0 +1,2 @@
+../Core/Src/mpu6050.c:7:6:MPU6050_Init	40	static
+../Core/Src/mpu6050.c:14:6:MPU6050_Read_Accel	40	static
