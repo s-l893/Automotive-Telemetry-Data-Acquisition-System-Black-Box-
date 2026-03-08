@@ -264,26 +264,27 @@ int main(void)
   sprintf(filename, "%02d%02d%02d%02d.csv",
           sDate.Month, sDate.Date, sTime.Hours, sTime.Minutes);
 
-  // ============================================================================
-  // SD CARD INITIALIZATION
-  // ============================================================================
-  printf("Storage:\r\n");
-  printf("  Filename: %s\r\n", filename);
+// ============================================================================
+// SD CARD INITIALIZATION 
+// ============================================================================
+printf("Storage:\r\n");
+printf("  Filename: %s\r\n", filename);
 
-  HAL_Delay(500);
-  res = f_mount(&fs, "", 1);
+HAL_Delay(500);
+res = f_mount(&fs, "", 1);
 
-  if (res == FR_OK) {
-      if (f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
-          f_puts("Time,Ax,Ay,Az,Lat,Lon,Spd,RPM,Throttle,VTEC\n", &fil);
-          f_close(&fil);
-          printf("  SD Card: Ready\r\n");
-      } else {
-          printf("  SD Card: File creation failed\r\n");
-      }
-  } else {
-      printf("  SD Card: Mount failed (error %d)\r\n", res);
-  }
+static uint8_t file_is_open = 0;
+
+// In your SD Card init section, change the f_open block to:
+if (f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
+    f_puts("Time,Ax,Ay,Az,Lat,Lon,Spd,RPM,Throttle,VTEC\n", &fil);
+    f_sync(&fil);
+    file_is_open = 1; // <-- SET THE GUARD FLAG
+    printf("  SD Card: Ready & File Opened\r\n");
+} else {
+    printf("  SD Card: File creation failed\r\n");
+    file_is_open = 0;
+}
 
   printf("\r\n=== System Ready ===\r\n");
   printf("Connect to car OBD port and start engine\r\n");
@@ -357,21 +358,43 @@ int main(void)
           }
       }
 
-      // 5. SD CARD LOGGING - Save data every 500ms
-      static uint32_t last_log = 0;
-      if (HAL_GetTick() - last_log >= 500) {
-          last_log = HAL_GetTick();
+    // 5. SD CARD LOGGING - Safe Caching Architecture
+static uint32_t last_log = 0;
+static uint8_t sync_counter = 0;
 
-          if (f_open(&fil, filename, FA_OPEN_APPEND | FA_WRITE) == FR_OK) {
-              char buf[128];
-              int len = sprintf(buf, "%lu,%.2f,%.2f,%.2f,%.6f,%.6f,%.1f,%lu,%.1f,%d\n",
-                              HAL_GetTick(), Ax, Ay, Az_filt,
-                              currentGPS.lat, currentGPS.lon, currentGPS.speed_kph,
-                              rpm, throttle, vtec_on);
-              f_write(&fil, buf, len, &bw);
-              f_close(&fil);
-          }
-      }
+if (file_is_open && (HAL_GetTick() - last_log >= 500)) {
+    last_log = HAL_GetTick();
+
+    // Capture tick ONCE so the logged timestamp matches this sample
+    uint32_t log_tick = HAL_GetTick();
+
+    char buf[160]; // Increased from 128 to safely handle worst-case floats
+    int len = snprintf(buf, sizeof(buf),
+                       "%lu,%.2f,%.2f,%.2f,%.6f,%.6f,%.1f,%lu,%.1f,%d\n",
+                       log_tick, Ax, Ay, Az_filt,
+                       currentGPS.lat, currentGPS.lon, currentGPS.speed_kph,
+                       rpm, throttle, vtec_on);
+
+    // Guard against snprintf truncation before writing
+    if (len > 0 && len < (int)sizeof(buf)) {
+        FRESULT write_res = f_write(&fil, buf, len, &bw);
+
+        if (write_res != FR_OK || bw != (UINT)len) {
+            // Write failed or was partial — log to UART, stop trying to write
+            printf("SD WRITE ERROR: res=%d bw=%u expected=%d\r\n", write_res, bw, len);
+            file_is_open = 0; // Disable further writes to prevent FAT corruption
+        } else {
+            sync_counter++;
+            if (sync_counter >= 5) {
+                if (f_sync(&fil) != FR_OK) {
+                    printf("SD SYNC ERROR\r\n");
+                    file_is_open = 0;
+                }
+                sync_counter = 0;
+            }
+        }
+    }
+}
 
       // 6. OLED DISPLAY - Update screen every 200ms
       static uint32_t last_oled = 0;
@@ -408,7 +431,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
+// And update your shutdown section (after the while loop) to:
+printf("\r\nSystem halting. Closing log file safely...\r\n");
+if (file_is_open) {
+    f_sync(&fil);   // Final flush before close
+    f_close(&fil);
+    file_is_open = 0;
+}
   /* USER CODE END 3 */
 }
 
