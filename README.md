@@ -42,14 +42,14 @@ This project implements a professional-grade automotive black box system that ca
 
 ### Current Implementation
 
-- ✅ **CAN Bus Interface**: Read real-time engine data from Honda J35 V6 ECU
+- ✅ **CAN Bus Interface**: Read real-time engine data from Honda J35Y1 V6 ECU
 - ✅ **Multi-Sensor Fusion**:
   - MPU6050 accelerometer (±2g range, I²C)
   - NEO-6M GPS module (UART, NMEA parsing)
   - SD card data logging (FAT32, SPI)
   - SSD1306 OLED display (128×64, I²C)
 - ✅ **Real-Time Data Logging**: 2Hz sampling rate to SD card (CSV format)
-- ✅ **VTEC Detection**: Automatic detection of Honda VTEC engagement (>5150 RPM)
+- ✅ **VTEC Detection**: Automatic detection of Honda VTEC engagement for the J35Y1 (>5150 RPM)
 - ✅ **Interactive Heatmaps**: Python-based visualization showing RPM, speed, and G-force intensity
 - ✅ **Safety Features**: Hardware fuse protection, error handling, graceful degradation
 
