@@ -68,7 +68,7 @@ FRESULT res;
 UINT bw;
 MPU6050_t myMPU;
 
-volatile uint8_t system_running = 1;
+volatile uint8_t system_running = 1; //Prevent an infinite loop when interrupt trigger is pulled
 char filename[20];
 RTC_TimeTypeDef sTime;
 RTC_DateTypeDef sDate;
@@ -116,16 +116,18 @@ float nmea_to_dec(float nmea) {
 }
 
 void process_gps_line(char *line) {
-    if (strstr(line, "$GPRMC")) {
+    if (strstr(line, "$GPRMC")) { // Searching for relevant data
         char *ptr = line;
         int field = 0;
         char *token = strtok(ptr, ",");
         while (token != NULL) {
             field++;
+            // Token A shows that gps is active (locked to satellite)
+            // V is void (tunnel or garage) if gps is not locked, garbage info may come in, in V state, code is told to ignore the rest
             if (field == 3) currentGPS.has_fix = (*token == 'A');
             if (field == 4 && currentGPS.has_fix) currentGPS.lat = nmea_to_dec(atof(token));
             if (field == 6 && currentGPS.has_fix) currentGPS.lon = nmea_to_dec(atof(token));
-            if (field == 7 && currentGPS.has_fix && *token == 'W') currentGPS.lon *= -1.0f; // London, ON Fix
+            if (field == 7 && currentGPS.has_fix && *token == 'W') currentGPS.lon *= -1.0f; // London, ON Fix - Western hemisphere
             if (field == 8 && currentGPS.has_fix) currentGPS.speed_kph = atof(token) * 1.852f;
             token = strtok(NULL, ",");
         }
@@ -178,7 +180,9 @@ int main(void)
   printf("CAN Setup:\r\n");
   printf("  APB1 Clock: %lu Hz\r\n", HAL_RCC_GetPCLK1Freq());
 
-  // Configure CAN filter to accept all messages
+  // Configure CAN filter to accept all messages 
+  // By setting the mask to 0x0000 it will accept all CAN messages, wasting resources
+  // This will NOT be done in the finalized / production version
   CAN_FilterTypeDef sFilterConfig;
   sFilterConfig.FilterBank = 0;
   sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
@@ -221,7 +225,9 @@ int main(void)
   ssd1306_UpdateScreen();
 
   // ============================================================================
-  // ACCELEROMETER CALIBRATION
+  // ACCELEROMETER CALIBRATION - MPU6050
+  // Utlizing an averaging filter, it takes 100 samples and divides by 100 to find the average offset
+  // Said offset is subtracted from the actual readings
   // ============================================================================
   printf("  Calibrating accelerometer...\r\n");
   float sumX = 0, sumY = 0, sumZ = 0;
@@ -271,7 +277,9 @@ printf("Storage:\r\n");
 printf("  Filename: %s\r\n", filename);
 
 HAL_Delay(500);
-res = f_mount(&fs, "", 1);
+res = f_mount(&fs, "", 1); // Waking up the SD card
+                           // Sends SPI commands to the card to verify its formatting and to locate it's root directory
+                           // upon failure, the logging aspect will be skipped rather than the whole system crashing
 
 static uint8_t file_is_open = 0;
 
@@ -322,8 +330,10 @@ if (f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
               printf("\r\n");
 
               // Parse Honda RPM (ID 0x158, bytes 2-3)
+              // Example of Bit-Shifting
               if (rxHeader.StdId == 0x158) {
-                  rpm = (rxData[2] << 8) | rxData[3];
+                  rpm = (rxData[2] << 8) | rxData[3]; // Take high byte and physically shift its binary 1s and 0s eight places to the left, making space for low byte
+                                                      // bitwise OR operator takes low byte and slots it perfectly into the empty space that was just created
                   printf("  -> RPM: %lu\r\n", rpm);
               }
 
@@ -336,6 +346,7 @@ if (f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
       }
 
       // 3. ACCELEROMETER - Read G-forces
+      // HAL_Delay is avoided as it literally stops the CPU clock, missing many messages
       static uint32_t last_accel = 0;
       if (HAL_GetTick() - last_accel >= 20) {
           last_accel = HAL_GetTick();
@@ -410,7 +421,7 @@ if (file_is_open && (HAL_GetTick() - last_log >= 500)) {
           ssd1306_WriteString(display_buf, Font_7x10, White);
 
           // Show max G-force
-          float max_g = (fabs(Ax) > fabs(Ay)) ? Ax : Ay;
+          float max_g = (fabs(Ax) > fabs(Ay)) ? Ax : Ay; // Ternary operator to grab max G force value in one line without if/else statements
           sprintf(display_buf, "G: %.2f", max_g);
           ssd1306_SetCursor(2, 15);
           ssd1306_WriteString(display_buf, Font_11x18, White);
