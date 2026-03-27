@@ -225,7 +225,7 @@ int main(void)
         HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET); // Force recessive
     }
-}
+
 else
 {
     printf("  CAN ready for car connection\r\n");
