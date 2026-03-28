@@ -69,6 +69,7 @@ FRESULT res;
 UINT bw;
 MPU6050_t myMPU;
 
+static uint8_t rtc_set_from_gps = 0;
 volatile uint8_t system_running = 1; // Prevent an infinite loop when interrupt trigger is pulled
 char filename[20];
 RTC_TimeTypeDef sTime;
@@ -120,26 +121,64 @@ float nmea_to_dec(float nmea)
 void process_gps_line(char *line)
 {
     if (strstr(line, "$GPRMC"))
-    { // Searching for relevant data
+    {
         char *ptr = line;
         int field = 0;
+        char time_str[12] = {0};  // capture UTC time
+        char date_str[8] = {0};
         char *token = strtok(ptr, ",");
+
         while (token != NULL)
         {
             field++;
-            // Token A shows that gps is active (locked to satellite)
-            // V is void (tunnel or garage) if gps is not locked, garbage info may come in, in V state, code is told to ignore the rest
-            if (field == 3)
+            if (field == 2) strncpy(time_str, token, sizeof(time_str) - 1);
+            if (field == 3) {
                 currentGPS.has_fix = (*token == 'A');
+            }
             if (field == 4 && currentGPS.has_fix)
                 currentGPS.lat = nmea_to_dec(atof(token));
             if (field == 6 && currentGPS.has_fix)
                 currentGPS.lon = nmea_to_dec(atof(token));
             if (field == 7 && currentGPS.has_fix && *token == 'W')
-                currentGPS.lon *= -1.0f; // London, ON Fix - Western hemisphere
+                currentGPS.lon *= -1.0f;
             if (field == 8 && currentGPS.has_fix)
                 currentGPS.speed_kph = atof(token) * 1.852f;
             token = strtok(NULL, ",");
+            if (field == 10) strncpy(date_str, token, sizeof(date_str) - 1);
+            printf("DATE_STR raw: [%s]\r\n", date_str);
+        }
+
+        // Set RTC once from GPS after fix confirmed
+        if (currentGPS.has_fix && !rtc_set_from_gps && strlen(time_str) >= 6)
+        {
+            RTC_TimeTypeDef gpsTime = {0};
+            int utc_hours = (time_str[0] - '0') * 10 + (time_str[1] - '0');
+            utc_hours -= 4;
+            if (utc_hours < 0) utc_hours += 24;
+            gpsTime.Hours   = utc_hours;
+            gpsTime.Minutes = (time_str[2] - '0') * 10 + (time_str[3] - '0');
+            gpsTime.Seconds = (time_str[4] - '0') * 10 + (time_str[5] - '0');
+            gpsTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+            gpsTime.StoreOperation = RTC_STOREOPERATION_RESET;
+            HAL_RTC_SetTime(&hrtc, &gpsTime, RTC_FORMAT_BIN);
+
+            // ADD THE DATE CODE HERE
+            RTC_DateTypeDef gpsDate = {0};
+            gpsDate.Date    = (date_str[0] - '0') * 10 + (date_str[1] - '0');
+            gpsDate.Month   = (date_str[2] - '0') * 10 + (date_str[3] - '0');
+            gpsDate.Year    = (date_str[4] - '0') * 10 + (date_str[5] - '0');
+            gpsDate.WeekDay = RTC_WEEKDAY_FRIDAY;
+            HAL_RTC_SetDate(&hrtc, &gpsDate, RTC_FORMAT_BIN);
+            sDate = gpsDate;
+
+            sprintf(filename, "%02d%02d%02d%02d.csv",
+                    sDate.Month, sDate.Date,
+                    gpsTime.Hours, gpsTime.Minutes);
+
+            rtc_set_from_gps = 1;
+            printf("RTC synced from GPS: %02d:%02d:%02d local\r\n",
+                   gpsTime.Hours, gpsTime.Minutes, gpsTime.Seconds);
+            printf("New filename: %s\r\n", filename);
         }
     }
 }
@@ -329,6 +368,8 @@ printf("Monitoring CAN bus for messages...\r\n\r\n");
 ssd1306_Fill(Black);
 ssd1306_UpdateScreen();
 
+
+
 /* USER CODE END 2 */
 
 /* Infinite loop */
@@ -365,7 +406,6 @@ while (system_running)
             if (rxHeader.StdId == 0x158)
             {
                 rpm = (rxData[2] << 8) | rxData[3]; // Take high byte and physically shift its binary 1s and 0s eight places to the left, making space for low byte
-                                                    // bitwise OR operator takes low byte and slots it perfectly into the empty space that was just created
                 printf("  -> RPM: %lu\r\n", rpm);
             }
 
