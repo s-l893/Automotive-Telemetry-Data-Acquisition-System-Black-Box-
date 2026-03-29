@@ -405,26 +405,26 @@ while (system_running)
         if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &rxHeader, rxData) == HAL_OK)
         {
             // Print all received messages for debugging
-            printf("CAN RX: ID=0x%03lX Data=", rxHeader.StdId);
+           // printf("CAN RX: ID=0x%03lX Data=", rxHeader.StdId);
             for (int i = 0; i < rxHeader.DLC; i++)
             {
-                printf("%02X ", rxData[i]);
+             //   printf("%02X ", rxData[i]);
             }
-            printf("\r\n");
+            //printf("\r\n");
 
             // Parse Honda RPM (ID 0x158, bytes 2-3)
             // Example of Bit-Shifting
             if (rxHeader.StdId == 0x158)
             {
                 rpm = (rxData[2] << 8) | rxData[3]; // Take high byte and physically shift its binary 1s and 0s eight places to the left, making space for low byte
-                printf("  -> RPM: %lu\r\n", rpm);
+              //  printf("  -> RPM: %lu\r\n", rpm);
             }
 
             // Parse standard OBD-II RPM response (ID 0x7E8)
             if (rxHeader.StdId == 0x7E8 && rxData[1] == 0x41 && rxData[2] == 0x0C)
             {
                 rpm = ((rxData[3] << 8) | rxData[4]) / 4;
-                printf("  -> RPM (OBD): %lu\r\n", rpm);
+                //printf("  -> RPM (OBD): %lu\r\n", rpm);
             }
         }
     }
