@@ -512,27 +512,23 @@ while (system_running)
         ssd1306_Fill(Black);
         char display_buf[20];
 
-        // Show RPM
-        sprintf(display_buf, "RPM:%lu", rpm);
-        ssd1306_SetCursor(2, 2);
-        ssd1306_WriteString(display_buf, Font_7x10, White);
+        // RPM - big font matching G-force
+        sprintf(display_buf, "R:%lu", rpm);
+        ssd1306_SetCursor(2, 0);
+        ssd1306_WriteString(display_buf, Font_11x18, White); // now same size as G
 
-        // Show max G-force
-        float max_g = (fabs(Ax) > fabs(Ay)) ? Ax : Ay; // Ternary operator to grab max G force value in one line without if/else statements
-        sprintf(display_buf, "G: %.2f", max_g);
-        ssd1306_SetCursor(2, 15);
+        // G-force - same big font
+        float max_g = (fabs(Ax) > fabs(Ay)) ? Ax : Ay;
+        sprintf(display_buf, "G:%.2f", max_g);
+        ssd1306_SetCursor(2, 22);
         ssd1306_WriteString(display_buf, Font_11x18, White);
 
-        // Show GPS status
+        // GPS status - small font at bottom
         if (currentGPS.has_fix)
-        {
-            sprintf(display_buf, "GPS:OK %.0f", currentGPS.speed_kph);
-        }
+            sprintf(display_buf, "GPS:OK %.0fkph", currentGPS.speed_kph);
         else
-        {
-            sprintf(display_buf, "GPS:--");
-        }
-        ssd1306_SetCursor(2, 40);
+            sprintf(display_buf, "GPS: NO FIX");
+        ssd1306_SetCursor(2, 48);
         ssd1306_WriteString(display_buf, Font_7x10, White);
 
         ssd1306_UpdateScreen();
