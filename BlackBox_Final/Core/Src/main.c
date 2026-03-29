@@ -70,6 +70,7 @@ UINT bw;
 MPU6050_t myMPU;
 
 static uint8_t rtc_set_from_gps = 0;
+uint8_t file_is_open = 0;
 volatile uint8_t system_running = 1; // Prevent an infinite loop when interrupt trigger is pulled
 char filename[20];
 RTC_TimeTypeDef sTime;
@@ -143,9 +144,8 @@ void process_gps_line(char *line)
                 currentGPS.lon *= -1.0f;
             if (field == 8 && currentGPS.has_fix)
                 currentGPS.speed_kph = atof(token) * 1.852f;
-            token = strtok(NULL, ",");
             if (field == 10) strncpy(date_str, token, sizeof(date_str) - 1);
-            printf("DATE_STR raw: [%s]\r\n", date_str);
+            	token = strtok(NULL, ",");
         }
 
         // Set RTC once from GPS after fix confirmed
@@ -176,6 +176,17 @@ void process_gps_line(char *line)
                     gpsTime.Hours, gpsTime.Minutes);
 
             rtc_set_from_gps = 1;
+            if (file_is_open) {
+                f_sync(&fil);
+                f_close(&fil);
+                file_is_open = 0;
+            }
+            if (f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
+                f_puts("Time,Ax,Ay,Az,Lat,Lon,Spd,RPM,Throttle,VTEC\n", &fil);
+                f_sync(&fil);
+                file_is_open = 1;
+                printf("Reopened log: %s\r\n", filename);
+            }
             printf("RTC synced from GPS: %02d:%02d:%02d local\r\n",
                    gpsTime.Hours, gpsTime.Minutes, gpsTime.Seconds);
             printf("New filename: %s\r\n", filename);
@@ -344,7 +355,7 @@ res = f_mount(&fs, "", 1); // Waking up the SD card
                            // Sends SPI commands to the card to verify its formatting and to locate it's root directory
                            // upon failure, the logging aspect will be skipped rather than the whole system crashing
 
-static uint8_t file_is_open = 0;
+
 
 // In your SD Card init section, change the f_open block to:
 if (f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE) == FR_OK)
