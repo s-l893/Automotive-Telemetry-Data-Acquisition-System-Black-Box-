@@ -462,7 +462,7 @@ while (system_running)
     static uint32_t last_log = 0;
     static uint8_t sync_counter = 0;
 
-    if (file_is_open && (HAL_GetTick() - last_log >= 500))
+    if (file_is_open && (HAL_GetTick() - last_log >= 200))
     {
         last_log = HAL_GetTick();
 
