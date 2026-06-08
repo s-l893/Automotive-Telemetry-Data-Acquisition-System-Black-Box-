@@ -69,6 +69,101 @@ def _drop_spatial_outliers(df, lat_col="Lat", lon_col="Lon", max_km=150.0):
     return df.loc[d <= max_km * 1000.0].copy()
 
 
+def _time_delta_seconds(t):
+    """Infer per-row sampling interval from Time column (ms vs s heuristics)."""
+    t = np.asarray(t, dtype=float)
+    dt = np.diff(t)
+    ok = np.isfinite(dt) & (dt > 0)
+    if not ok.any():
+        return None
+    med = float(np.median(dt[ok]))
+    if med >= 200.0:
+        return dt / 1000.0  # milliseconds -> seconds
+    if med >= 5.0:
+        return dt  # already seconds (coarse logs)
+    return dt
+
+
+def _remove_gps_by_implied_speed(
+    df,
+    time_col="Time",
+    lat_col="Lat",
+    lon_col="Lon",
+    max_mps=75.0,
+    max_iter=5000,
+):
+    """
+    Remove points that imply impossible travel speed vs the previous sample.
+    Handles one-way 'teleport' glitches (duplicate coords then a huge jump).
+    """
+    out = df.reset_index(drop=True)
+    removed = 0
+    for _ in range(max_iter):
+        n = len(out)
+        if n < 2:
+            break
+        t = pd.to_numeric(out[time_col], errors="coerce").to_numpy(dtype=float)
+        lat = out[lat_col].to_numpy(dtype=float)
+        lon = out[lon_col].to_numpy(dtype=float)
+        dt_s = _time_delta_seconds(t)
+        if dt_s is None or len(dt_s) != n - 1:
+            break
+        dt_s = np.where(np.isfinite(dt_s) & (dt_s > 0), dt_s, 0.5)
+        dist = np.array(
+            [
+                float(_haversine_m(lat[i], lon[i], lat[i + 1], lon[i + 1]))
+                for i in range(n - 1)
+            ]
+        )
+        speed = dist / np.maximum(dt_s, 0.05)
+        bad = speed > max_mps
+        if not bad.any():
+            break
+        k = int(np.argmax(bad)) + 1
+        out = out.drop(index=k).reset_index(drop=True)
+        removed += 1
+    return out, removed
+
+
+def _remove_interior_gps_spikes(
+    df,
+    lat_col="Lat",
+    lon_col="Lon",
+    min_leg_m=220.0,
+    max_bridge_m=800.0,
+    max_passes=8,
+):
+    """
+    Drop interior points that form an impossible 'tent pole': both legs to neighbors are
+    long, but neighbors are close to each other (bad fix / coordinate glitch).
+    Repeats until stable so double-spikes are cleaned too.
+    """
+    if len(df) < 3:
+        return df.copy(), 0
+
+    total_removed = 0
+    out = df.reset_index(drop=True)
+    for _ in range(max_passes):
+        lat = out[lat_col].to_numpy(dtype=float)
+        lon = out[lon_col].to_numpy(dtype=float)
+        n = len(out)
+        if n < 3:
+            break
+        drop = np.zeros(n, dtype=bool)
+        for i in range(1, n - 1):
+            d_ab = float(_haversine_m(lat[i - 1], lon[i - 1], lat[i], lon[i]))
+            d_bc = float(_haversine_m(lat[i], lon[i], lat[i + 1], lon[i + 1]))
+            d_ac = float(_haversine_m(lat[i - 1], lon[i - 1], lat[i + 1], lon[i + 1]))
+            if d_ab > min_leg_m and d_bc > min_leg_m and d_ac < max_bridge_m:
+                drop[i] = True
+        if not drop.any():
+            break
+        removed = int(drop.sum())
+        total_removed += removed
+        out = out.loc[~drop].reset_index(drop=True)
+    return out, total_removed
+
+
 def _merge_colored_segments(points, hex_colors):
     """
     Merge consecutive route edges that share the same color.
@@ -142,7 +237,27 @@ def generate_heatmap(csv_file_path, data_channel="RPM", out_path=None):
         print("All points removed as spatial outliers; check GPS data.\n")
         return
 
+    if "Time" in df_valid.columns:
+        df_valid["Time"] = pd.to_numeric(df_valid["Time"], errors="coerce")
+        df_valid = df_valid.sort_values("Time", kind="mergesort").reset_index(drop=True)
+
+    speed_removed = 0
+    if "Time" in df_valid.columns:
+        df_valid, speed_removed = _remove_gps_by_implied_speed(df_valid)
+        if df_valid.empty:
+            print("All GPS rows removed after implied-speed cleanup.\n")
+            return
+
+    df_valid, spike_removed = _remove_interior_gps_spikes(df_valid)
+    if df_valid.empty:
+        print("All GPS rows removed after spike cleanup.\n")
+        return
+
     print(f"GPS OK: {len(df_valid)} / {len(df)} rows ({dropped_gps} dropped before outlier filter)")
+    if speed_removed:
+        print(f"   Removed {speed_removed} point(s) (implied speed > 75 m/s vs prior sample)")
+    if spike_removed:
+        print(f"   Removed {spike_removed} GPS spike point(s) (tent-pole bad fixes)")
 
     if data_channel not in df_valid.columns:
         print(f"Column '{data_channel}' not found.")
@@ -164,8 +279,21 @@ def generate_heatmap(csv_file_path, data_channel="RPM", out_path=None):
             return
         print(f"   {name}:  {fmt_min.format(s.min())} - {fmt_max.format(s.max())} (avg: {fmt_avg.format(s.mean())})")
 
+    def stat_line_rpm_nonzero(fmt_min, fmt_max, fmt_avg):
+        if "RPM" not in df_valid.columns:
+            return
+        s = pd.to_numeric(df_valid["RPM"], errors="coerce").dropna()
+        s_nz = s[s != 0]
+        if s_nz.empty:
+            print("   RPM:  (no non-zero samples; idle/off during log)")
+            return
+        print(
+            f"   RPM:  {fmt_min.format(s_nz.min())} - {fmt_max.format(s_nz.max())} "
+            f"(avg excl. 0: {fmt_avg.format(s_nz.mean())})"
+        )
+
     print("\nTelemetry summary:")
-    stat_line("RPM", "{:.0f}", "{:.0f}", "{:.0f}")
+    stat_line_rpm_nonzero("{:.0f}", "{:.0f}", "{:.0f}")
     stat_line("Spd", "{:.1f}", "{:.1f}", "{:.1f}")
     stat_line("Ax", "{:.2f}", "{:.2f}", "{:.2f}")
     stat_line("Ay", "{:.2f}", "{:.2f}", "{:.2f}")
@@ -234,6 +362,9 @@ def generate_heatmap(csv_file_path, data_channel="RPM", out_path=None):
         vmin = float(series.min())
     if vmax is None:
         vmax = float(series.max())
+    if data_channel == "RPM" and vmax is not None:
+        peak = float(np.nanmax(series.to_numpy(dtype=float)))
+        vmax = max(float(vmax), peak * 1.02, 7000.0)
     if vmax <= vmin:
         vmax = vmin + 1e-6
 
@@ -245,7 +376,14 @@ def generate_heatmap(csv_file_path, data_channel="RPM", out_path=None):
     )
     colormap.add_to(m)
 
-    vals = np.clip(series.to_numpy(dtype=float), vmin, vmax)
+    # Color each segment by max(endpoint telemetry) so a brief peak (e.g. max RPM) paints
+    # the visible edge, not only the sample at the start of the segment.
+    arr = series.to_numpy(dtype=float)
+    if len(arr) >= 2:
+        edge_vals = np.maximum(arr[:-1], arr[1:])
+    else:
+        edge_vals = np.array([], dtype=float)
+    vals = np.clip(edge_vals, vmin, vmax)
     hex_colors = [colormap.rgb_hex_str(float(v)) for v in vals]
     points = df_valid[["Lat", "Lon"]].astype(float).values.tolist()
 
