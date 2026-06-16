@@ -1,0 +1,35 @@
+----------------------------------------------------------------------------------------------------------------------------------
+NCDrill File Report For: V2_PCB.PcbDoc   6/15/2026  7:27:35 PM
+----------------------------------------------------------------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII RoundHoles File : V2_PCB.TXT
+EIA File   : V2_PCB.DRL
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T1      0.3mm (12mil)                                             Round             33        PTH        481.13mm (18.94inch)
+T2      0.762mm (30mil)                                           Round             2         PTH        5.87mm (0.23inch)
+T3      1mm (39mil)                                               Round             4         PTH        74.75mm (2.94inch)
+T4      1.02mm (40mil)                                            Round             94        PTH        442.16mm (17.41inch)
+T5      1.04mm (41mil)                                            Round             9         PTH        30.55mm (1.20inch)
+T6      1.07mm (42mil)                                            Round             32        PTH        207.11mm (8.15inch)
+T7      1.1mm (43mil)                                             Round             14        PTH        33.02mm (1.30inch)
+T8      3.17mm (125mil)                                           Round             2         PTH        24.99mm (0.98inch)
+T9      3mm (118mil)                                              Round             3         NPTH       101.31mm (3.99inch)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              193
+
+Two holes at same point : 9
+-----------------------
+2905,205
+3740,155
+3240,155
+1419,184
+1135,515
+116,780
+116,2345
+1075,1100
+3475,900
+
+Total Processing Time (hh:mm:ss) : 00:00:01
