@@ -1,6 +1,6 @@
 # 🏎️ Automotive Black Box - Real-Time Vehicle Telemetry System
 
-An embedded systems project that transforms an STM32 microcontroller into a comprehensive automotive data logger, capturing real-time telemetry from a 2016 Honda Accord V6 and generating interactive visualizations.
+A full stack embedded systems project that transforms an STM32 microcontroller into a comprehensive automotive data logger, capturing real-time telemetry from a 2016 Honda Accord V6 and generating interactive visualizations, featuring a custom PCB and 3D-printed enclosure. Version 2 is currently in development.
 
 ![Project Status](https://img.shields.io/badge/status-in%20development-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -49,7 +49,7 @@ This project implements a professional-grade automotive black box system that ca
   - SD card data logging (FAT32, SPI)
   - SSD1306 OLED display (128×64, I²C)
 - ✅ **Real-Time Data Logging**: 2Hz sampling rate to SD card (CSV format)
-- ✅ **VTEC Detection**: Automatic detection of Honda VTEC engagement for the J35Y1 (>5150 RPM)
+- ✅ **VTEC Detection**: Automatic detection of Honda VTEC engagement for the J35Y1 V6 engine (>5150 RPM)
 - ✅ **Interactive Heatmaps**: Python-based visualization showing RPM, speed, and G-force intensity
 - ✅ **Safety Features**: Hardware fuse protection, error handling, graceful degradation
 
