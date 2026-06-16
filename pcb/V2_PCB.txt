@@ -1,5 +1,12 @@
 Board Information Report
 Filename     : C:\Users\Sunny Lin\Documents\Black Box\pcb\V2_PCB.PcbDoc
-Date         : 6/14/2026
-Time         : 10:41:41 PM
+Date         : 6/15/2026
+Time         : 2:24:57 PM
 Time Elapsed : 00:00:00
+
+Routing Information
+    Routing completion, 98.53%
+    Connections, 68
+    Connections routed, 67
+    Connections remaining, 1
+count : 4
