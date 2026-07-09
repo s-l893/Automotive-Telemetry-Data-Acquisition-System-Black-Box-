@@ -18,7 +18,7 @@ typedef struct {
 } ring_buffer_t;
 
 
-void RingBuffer_Init(ring_buffer_t *rb, uint16_t capacity, uint8_t *buffer){
+void RingBuffer_Init(volatile ring_buffer_t *rb, uint16_t capacity, uint8_t *buffer){
 	rb->head = 0;
 	rb->tail = 0;
 	rb->count = 0;
@@ -26,7 +26,7 @@ void RingBuffer_Init(ring_buffer_t *rb, uint16_t capacity, uint8_t *buffer){
 	rb->buffer = buffer;
 	rb->capacity = capacity;
 }
-bool RingBuffer_Push(ring_buffer_t *rb, uint8_t data){
+bool RingBuffer_Push(volatile ring_buffer_t *rb, uint8_t data){
 	rb -> buffer[rb->head] = data;
 	rb->head = (rb->head + 1) % rb->capacity;
 	if (rb->count == rb->capacity){
@@ -38,7 +38,7 @@ bool RingBuffer_Push(ring_buffer_t *rb, uint8_t data){
 	}
 	return true;
 }
-bool RingBuffer_Pop(ring_buffer_t *rb, uint8_t *data_out){
+bool RingBuffer_Pop(volatile ring_buffer_t *rb, uint8_t *data_out){
 	if (rb->count == 0){
 		return false;
 	}
