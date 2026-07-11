@@ -11,9 +11,20 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-void RingBuffer_Init(void);
-bool RingBuffer_Push(bool);
-bool RingBuffer_Pop(bool);
+typedef struct {
+	uint8_t *buffer;
+	uint16_t head;
+	uint16_t tail;
+	uint16_t count;
+	uint16_t capacity;
+	uint16_t dropped_count;
+} ring_buffer_t;
+
+
+void RingBuffer_Init(volatile ring_buffer_t*, uint16_t, uint8_t*);
+bool RingBuffer_Push(volatile ring_buffer_t*, uint8_t);
+bool RingBuffer_Pop(volatile ring_buffer_t*, uint8_t*);
+
 
 
 
