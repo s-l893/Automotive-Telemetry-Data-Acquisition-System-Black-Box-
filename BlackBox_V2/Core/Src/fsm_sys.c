@@ -6,6 +6,10 @@
  *
  */
 
+#include "can_handler.h"
+#include "sd_logger.h"
+#include <stdbool.h>
+#include <stdint.h>
 // VARIABLE DECLARATION
 static bool shutdown_complete = false;
 
