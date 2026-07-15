@@ -8,35 +8,21 @@
 
 #include "can_handler.h"
 #include "sd_logger.h"
+#include "fault.h"
+#include "fsm_sys.h"
 #include <stdbool.h>
 #include <stdint.h>
+
 // VARIABLE DECLARATION
 static bool shutdown_complete = false;
 
-
-
-// FSM DECLARATION
-	// LOGGING LIFECYCLE
-typedef enum {
-	SYS_INIT,	// PERIPHERAL INIT ATTEMP
-	SYS_IDLE, // POWER ON, WAITING FOR CAN
-	SYS_LOGGING, // FIRST CAN FRAME RECEIVED
-	SYS_FAULT, // FAULT WITH SOMETHING
-	SYS_SHUTDOWN // SHUTDOWN SEQUENCE
-} sys_state_t;
-
-	// FAULTS
-typedef struct {
-	bool sd_fault; // HARD FAULT
-	bool gps_fault; // SOFT FAULT
-	bool imu_fault; // SOFT FAULT
-	bool can_fault; // HARD FAULT
-} fault_flags_t;
+// FSM STRUCT DECLARED IN HEADER
 
 sys_state_t current_state = SYS_INIT; // SET INITIAL STATE
-fault_flags_t fault_flags;
 
-void SYS_FSM_TICK(){
+void SYS_FSM_TICK(void){
+	uint32_t can_timer;
+
 	switch (current_state){
 	case SYS_INIT:
 		if (sd_mount && peripherals_init){

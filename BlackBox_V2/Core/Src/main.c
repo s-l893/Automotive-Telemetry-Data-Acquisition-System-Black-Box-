@@ -26,8 +26,6 @@
 #include "usart.h"
 #include "gpio.h"
 
-
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -104,6 +102,19 @@ int main(void)
   MX_I2C3_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  can_handler_init();
+  SD_Logger_Init();
+
+  CAN_TxHeaderTypeDef tx_header;
+  uint8_t tx_data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+  uint32_t tx_mailbox;
+  tx_header.StdId = 0x123;
+  tx_header.IDE = CAN_ID_STD;
+  tx_header.RTR = CAN_RTR_DATA;
+  tx_header.DLC = 8;
+  tx_header.TransmitGlobalTime = DISABLE;
+  HAL_CAN_ADDTxMessage(&hcan1, &tx_header, tx_data, &tx_mailbox);
 
   /* USER CODE END 2 */
 

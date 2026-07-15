@@ -13,6 +13,7 @@
 
 extern volatile bool sd_mount;
 
+bool SD_Logger_Init(void);
 void start_new_session_file(void);
 void close_session_file(void);
 void sd_recovery(void);
