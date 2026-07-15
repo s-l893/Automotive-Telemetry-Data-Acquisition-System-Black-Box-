@@ -64,6 +64,7 @@ Mcu.UserName=STM32F446RETx
 MxCube.Version=6.16.1
 MxDb.Version=DB.6.0.161
 NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
+NVIC.CAN1_RX0_IRQn=true\:0\:0\:false\:false\:true\:true\:true\:true
 NVIC.DebugMonitor_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.EXTI15_10_IRQn=true\:0\:0\:false\:false\:true\:true\:true\:true
 NVIC.ForceEnableDMAVector=true

@@ -6,3 +6,6 @@
  */
 
 
+#include "fault.h"
+
+fault_flags_t fault_flags;
