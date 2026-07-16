@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define IDLE_SHUTDOWN_TIMEOUT_MS 300000
 // VARIABLE DECLARATION
 static bool shutdown_complete = false;
 
@@ -37,10 +38,14 @@ void SYS_FSM_TICK(void){
 		if (can_frame_received_flag){
 			current_state = SYS_LOGGING;
 			start_new_session_file();
+			activity = HAL_GetTick();
 			last_can_frame = HAL_GetTick();
 		}
-		if (ignition_off_detected){
-			current_state = SYS_SHUTDOWN;
+		else{
+			uint32_t idle_timer = HAL_GetTick();
+			if ((idle_timer - last_can_frame) >= IDLE_SHUTDOWN_TIMEOUT_MS){
+				current_state = SYS_SHUTDOWN;
+			}
 		}
 		break;
 	case SYS_LOGGING:
@@ -48,20 +53,21 @@ void SYS_FSM_TICK(void){
 			last_can_frame = HAL_GetTick();
 		}
 		else{
-			can_timer = HAL_GetTick(); // NON BLOCKING ARCHTECTURE
+			can_timer = HAL_GetTick(); // NON BLOCKING ARCHITECTURE
 			if ((can_timer - last_can_frame) >= 2500){ // 2.5S SILENCE TIMEOUT FEATURE
-				current_state = SYS_IDLE;
 				close_session_file();
+				current_state = SYS_IDLE;
 			}
-		if (ignition_off_detected){
-			current_state = SYS_SHUTDOWN;
-		}
 		}
 		break;
 	case SYS_FAULT: // MIGHT WANT TO ADD SOMETHING HERE FOR CAN LATER ON
 		sd_recovery(); // ATTEMPT TO RETRY SD MOUNT
 		if (sd_mount){
 			current_state = SYS_IDLE;
+		}
+		if ((idle_timer - last_can_frame) >= IDLE_SHUTDOWN_TIMEOUT_MS){
+
+			current_state = SYS_SHUTDOWN;
 		}
 		break;
 	case SYS_SHUTDOWN:
