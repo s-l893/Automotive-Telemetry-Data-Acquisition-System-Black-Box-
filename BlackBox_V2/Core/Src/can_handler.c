@@ -10,6 +10,7 @@
 #include <string.h>
 #include "can_ring_buffer.h"
 #include <stdbool.h>
+#include "fault.h"
 
 CAN_FilterTypeDef filter_config;
 
@@ -19,6 +20,7 @@ static can_frame_t can_storage[32];
 volatile can_ring_buffer_t can_rb;
 volatile uint32_t last_can_frame = 0;
 volatile bool can_frame_received_flag = false;
+volatile bool can_busoff_flag = false;
 
 
 void can_handler_init(void){
@@ -35,14 +37,13 @@ void can_handler_init(void){
 	HAL_CAN_ConfigFilter(&hcan1, &filter_config);
 	HAL_CAN_Start(&hcan1);
 	HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING);
+	HAL_CAN_ActivateNotification(&hcan1, CAN_IT_ERROR | CAN_IT_BUSOFF); // ACTIVATING ERROR NOTIFICATION
 	CANRingBuffer_Init(&can_rb, 32, can_storage);
 }
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){
 
-	// pull message out of FIFO0
 	if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, (uint8_t*)rx_data) == HAL_OK) {
-	    // build can_frame_t here using rx_header.StdId, rx_header.DLC, rx_data[]
 		can_frame_t frame;
 		frame.id = rx_header.StdId;
 		frame.dlc = rx_header.DLC;
@@ -52,4 +53,24 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan){
 		can_frame_received_flag = true;
 		CANRingBuffer_Push(&can_rb, frame);
 	}
+}
+
+void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan){
+	uint32_t error_code = HAL_CAN_GetError(hcan);
+	if (error_code & HAL_CAN_ERROR_BOF){
+		can_busoff_flag = true;
+		fault_flags.can_fault = true;
+	}
+}
+void CAN_Handler_RecoverBusOff(void){
+	if (can_busoff_flag){
+		HAL_CAN_Stop(&hcan1);                              // parameter: CAN handle
+		HAL_CAN_Init(&hcan1);                              // parameter: CAN handle - reinitializes, clears bus-off
+		HAL_CAN_ConfigFilter(&hcan1, &filter_config);       // REAPPLY FILTER
+		HAL_CAN_Start(&hcan1);                              // parameter: CAN handle
+		HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_ERROR | CAN_IT_BUSOFF); // re-activate both
+		fault_flags.can_fault = false;
+		can_busoff_flag = false; 							// CLEAR FLAGS
+	}
+
 }
