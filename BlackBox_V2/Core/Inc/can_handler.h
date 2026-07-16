@@ -17,5 +17,6 @@ extern volatile uint32_t last_can_frame;
 
 void can_handler_init(void);
 
+void CAN_Handler_RecoverBusOff(void);
 
 #endif /* INC_CAN_HANDLER_H_ */
