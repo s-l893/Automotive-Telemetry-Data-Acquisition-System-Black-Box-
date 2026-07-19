@@ -58,7 +58,9 @@ void SYS_FSM_TICK(void){
                 current_state = SYS_IDLE;
             }
         }
+        SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
         break;
+
     case SYS_FAULT: // MIGHT WANT TO ADD SOMETHING HERE FOR CAN LATER ON
         sd_recovery(); // ATTEMPT TO RETRY SD MOUNT
         if (sd_mount){

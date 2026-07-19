@@ -74,17 +74,17 @@ void SD_Logger_DrainCAN(void){
 			break;
 		}
 
-		snprintf(csv_buffer + offset, sizeof(csv_buffer), "%lu,0x%031X,%d\n", frame.timestamp, frame.id, frame.dlc);
-		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d\n", frame.timestamp, frame.id, frame.dlc, frame.data);
+
+		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d\n", frame.timestamp, frame.id, frame.dlc);
 		offset += written;
 	}
 	if (offset > 0){
-		break;
+		FRESULT verify = f_write(&log_file, csv_buffer, offset, &bytes_written);
+		if (verify != FR_OK){
+			fault_flags.sd_fault = true;
+		}
 	}
 
-	FRESULT verify = f_write(&log_file, csv_buffer, offset, &bytes_written);
-	if (verify != FR_OK){
-		fault_flags.sd_fault = true;
-	}
+
 }
 

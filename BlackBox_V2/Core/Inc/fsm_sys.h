@@ -21,6 +21,7 @@ typedef enum {
 
 
 void SYS_FSM_TICK(void);
+void SD_Logger_DrainCAN(void);
 
 extern sys_state_t current_state;
 
