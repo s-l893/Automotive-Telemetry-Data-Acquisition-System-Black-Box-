@@ -74,3 +74,6 @@ void CAN_Handler_RecoverBusOff(void){
 	}
 
 }
+
+void flush_ring_buffers(void) {
+}

@@ -12,6 +12,7 @@
 #include "fsm_sys.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include "main.h"
 
 #define IDLE_SHUTDOWN_TIMEOUT_MS 300000
 // VARIABLE DECLARATION
