@@ -65,17 +65,28 @@ void unmount_sd(void){
 void SD_Logger_DrainCAN(void){
 	can_frame_t frame;
 	int offset = 0;
-	uint16_t bytes_written = 0;
-	char csv_buffer[1024];
+	uint16_t bytes_written = 0; // total bytes written
+	char csv_buffer[1024]; // buffer to write to csv log
 
 	for (int i = 0; i < 16; i++){
 		bool got_frame = CANRingBuffer_Pop(&can_rb, &frame);
 		if(!got_frame){
 			break;
 		}
+		//DLC indicates how many of the 8 slots contain real data
 
-
-		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d\n", frame.timestamp, frame.id, frame.dlc);
+		uint8_t padded_data[8]; // Temporary buffer
+		for (int j = 0; j < 8; j++){
+			if (j >= frame.dlc){
+				padded_data[j] = 0;
+			}
+			else if (j < frame.dlc){
+				padded_data[j] = frame.data[j];
+			}
+		}
+		// %d specifiers for each data byte position (out of 8)
+		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", frame.timestamp, frame.id, frame.dlc, padded_data[0], padded_data[1], padded_data[2], padded_data[3],
+		        padded_data[4], padded_data[5], padded_data[6], padded_data[7]);
 		offset += written;
 	}
 	if (offset > 0){
@@ -87,4 +98,5 @@ void SD_Logger_DrainCAN(void){
 
 
 }
+
 
