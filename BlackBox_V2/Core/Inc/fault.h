@@ -7,6 +7,7 @@
 
 #ifndef INC_FAULT_H_
 #define INC_FAULT_H_
+#include <stdbool.h>
 
 	// FAULTS
 typedef struct {

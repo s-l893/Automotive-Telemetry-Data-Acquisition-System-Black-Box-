@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include "main.h"
 #include "can_handler.h"
+#include <stdio.h>
 
 FATFS fs;
 FIL log_file;
@@ -65,7 +66,7 @@ void unmount_sd(void){
 void SD_Logger_DrainCAN(void){
 	can_frame_t frame;
 	int offset = 0;
-	uint16_t bytes_written = 0; // total bytes written
+	UINT bytes_written = 0; // total bytes written
 	char csv_buffer[1024]; // buffer to write to csv log
 
 	for (int i = 0; i < 16; i++){

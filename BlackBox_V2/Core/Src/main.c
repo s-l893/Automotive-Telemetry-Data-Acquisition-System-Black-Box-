@@ -25,7 +25,9 @@
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
-
+#include "can_handler.h"
+#include "sd_logger.h"
+#include "fsm_sys.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -104,8 +106,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
-  peripherals_init &= SD_Logger_Init();
+  peripherals_init &= sd_mount;
   SD_Logger_Init();
+  start_new_session_file();
 
   CAN_TxHeaderTypeDef tx_header;
   uint8_t tx_data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
@@ -115,7 +118,7 @@ int main(void)
   tx_header.RTR = CAN_RTR_DATA;
   tx_header.DLC = 8;
   tx_header.TransmitGlobalTime = DISABLE;
-  HAL_CAN_ADDTxMessage(&hcan1, &tx_header, tx_data, &tx_mailbox);
+  HAL_CAN_AddTxMessage(&hcan1, &tx_header, tx_data, &tx_mailbox);
 
   /* USER CODE END 2 */
 
