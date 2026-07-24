@@ -34,6 +34,10 @@ bool SD_Logger_Init(void) {
 }
 
 void start_new_session_file(void){
+	static int session_number = 0;
+	snprintf(filename, sizeof(filename), "log_%03d.csv", session_number);
+	session_number++;
+
 	FRESULT res = f_open(&log_file, filename, FA_CREATE_ALWAYS | FA_WRITE); //filename variable will be dealt with after gps is coded
 	if (res != FR_OK){
 		fault_flags.sd_fault = true;
