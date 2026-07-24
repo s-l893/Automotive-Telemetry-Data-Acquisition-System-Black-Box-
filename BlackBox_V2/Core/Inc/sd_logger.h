@@ -18,5 +18,6 @@ void start_new_session_file(void);
 void close_session_file(void);
 void sd_recovery(void);
 void unmount_sd(void);
+void flush_ring_buffers(void);
 
 #endif /* INC_SD_LOGGER_H_ */
