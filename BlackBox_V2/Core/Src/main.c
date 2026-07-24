@@ -21,13 +21,12 @@
 #include "can.h"
 #include "fatfs.h"
 #include "i2c.h"
+#include "iwdg.h"
 #include "rtc.h"
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
-#include "can_handler.h"
-#include "sd_logger.h"
-#include "fsm_sys.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -103,6 +102,7 @@ int main(void)
   MX_SPI2_Init();
   MX_I2C3_Init();
   MX_USART3_UART_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
@@ -128,6 +128,7 @@ int main(void)
   {
 	  SYS_FSM_TICK();
 	  CAN_Handler_RecoverBusOff();
+	  HAL_IWDG_Refrech(&hiwdg);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -19,6 +19,6 @@ void can_handler_init(void);
 
 void CAN_Handler_RecoverBusOff(void);
 
-void flush_ring_buffers(void);
+
 
 #endif /* INC_CAN_HANDLER_H_ */

@@ -100,4 +100,14 @@ void SD_Logger_DrainCAN(void){
 
 }
 
+void flush_ring_buffers(void){
+	int drain_count = 0;
+	while (can_rb.count > 0){
+		if (drain_count>= 1000){
+			break;
+		}
+		SD_Logger_DrainCAN();
+		drain_count++;
+	}
+}
 
