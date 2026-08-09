@@ -35,7 +35,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
-
+#include <stdbool.h>
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 
@@ -69,6 +69,45 @@ Diskio_drvTypeDef  USER_Driver =
 #endif /* _USE_IOCTL == 1 */
 };
 
+void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc){ // Credit to Claude
+    uint8_t frame[6];
+    frame[0] = 0x40 | cmd;           // command byte: 0x40 OR'd with command number
+    frame[1] = (uint8_t)(arg >> 24); // argument, MSB first
+    frame[2] = (uint8_t)(arg >> 16);
+    frame[3] = (uint8_t)(arg >> 8);
+    frame[4] = (uint8_t)(arg);
+    frame[5] = crc;
+
+    uint8_t rx;
+    for (int i = 0; i < 6; i++){
+        HAL_SPI_TransmitReceive(&hspi1, &frame[i], &rx, 1, HAL_MAX_DELAY);
+    }
+}
+
+void SD_ReadR7(uint8_t *response){ // EXTENSION OF R1 BYTE
+	uint8_t tx = 0xFF, rx = 0xFF;
+	int timeout = 10;
+	while (timeout--){
+		HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, HAL_MAX_DELAY);
+		if ((rx & 0x80) == 0) break;
+	}
+	response[0] = rx;
+
+	for (int i = 1; i<5; i++){
+		HAL_SPI_TransmitReceive(&hspi1,&tx, &rx, 1, HAL_MAX_DELAY);
+		response[i]	= rx;
+	}
+}
+
+uint8_t SD_ReadR1(void){
+    uint8_t tx = 0xFF, rx = 0xFF;
+    int timeout = 10;
+    while (timeout--){
+        HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, HAL_MAX_DELAY);
+        if ((rx & 0x80) == 0) break;
+    }
+    return rx;
+}
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -78,12 +117,57 @@ Diskio_drvTypeDef  USER_Driver =
   */
 DSTATUS USER_initialize (
 	BYTE pdrv           /* Physical drive nmuber to identify the drive */
+
 )
 {
   /* USER CODE BEGIN INIT */
-    Stat = STA_NOINIT;
-    return Stat;
-  /* USER CODE END INIT */
+	uint8_t dummy = 0xFF;
+	uint8_t rx;
+	uint32_t Timeout = 5000;
+	uint32_t tries = 1000;
+
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_SET);  // CS high
+		for (int i = 0; i < 10; i++){ // 10 bytes  = 80 clocks, 80 > 74 bytes
+			 HAL_SPI_TransmitReceive(&hspi1, &dummy, &rx, 1, HAL_MAX_DELAY);
+		}
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
+	SD_SendCommand(0, 0x00000000, 0x95); //SEND CMD 0 (IDLE STATE)
+
+
+	 uint8_t response = SD_ReadR1();
+	 if (response == 0x01){
+		 Stat = 0;
+	 } else {
+		 Stat = STA_NOINIT;
+	 }
+
+
+	 SD_SendCommand(8,0x000001AA, 0x87);
+
+	 uint8_t ReadR7[5];
+
+	 SD_ReadR7(ReadR7);
+
+	 bool v2_card = (ReadR7[4] == 0XAA);
+
+	 bool sd_ready = false;
+	 while (tries > 0 && !sd_ready){
+		 if (v2_card){
+			 SD_SendCommand(55, 0x00000000, 0x01);
+		 }
+		 else{
+			 SD_SendCommand(41,0x40000000, 0x01);
+		 }
+		 uint8_t response7 = SD_ReadR1();
+		 if (response7 == 0x00){
+			 sd_ready = true;
+		 }
+		 tries--;
+			 Stat = sd_ready ? 0 : STA_NOINIT;
+
+	 }
+	 return Stat;
+    /* USER CODE END INIT */
 }
 
 /**
