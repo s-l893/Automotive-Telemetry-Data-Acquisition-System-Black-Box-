@@ -42,7 +42,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* Disk status */
 static volatile DSTATUS Stat = STA_NOINIT;
-
+static bool block_addressing = false;
 /* USER CODE END DECL */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -126,13 +126,17 @@ DSTATUS USER_initialize (
 	uint32_t Timeout = 5000;
 	uint32_t tries = 1000;
 
+
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256; // REDUCED SPI BAUD RATE FOR INIT PURPOSES
+	HAL_SPI_Init(&hspi1);
+
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_SET);  // CS high
 		for (int i = 0; i < 10; i++){ // 10 bytes  = 80 clocks, 80 > 74 bytes
 			 HAL_SPI_TransmitReceive(&hspi1, &dummy, &rx, 1, HAL_MAX_DELAY);
 		}
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
 	SD_SendCommand(0, 0x00000000, 0x95); //SEND CMD 0 (IDLE STATE)
-
+	// KNOWN CRC VALUE FOR CMD0
 
 	 uint8_t response = SD_ReadR1();
 	 if (response == 0x01){
@@ -142,21 +146,23 @@ DSTATUS USER_initialize (
 	 }
 
 
-	 SD_SendCommand(8,0x000001AA, 0x87);
-
+	 SD_SendCommand(8,0x000001AA, 0x87); // SEND CMD8 FOR CARD VOLTAGE RANGE SUPPORT (SDHC/SDXC DETECTION)
+	 // KNOWN CORRECT CRC VALUE FOR CMD8
 	 uint8_t ReadR7[5];
 
 	 SD_ReadR7(ReadR7);
 
-	 bool v2_card = (ReadR7[4] == 0XAA);
+	 bool v2_card = (ReadR7[4] == 0XAA); //0XAA RECOMMENDED TEST BYTE
 
 	 bool sd_ready = false;
 	 while (tries > 0 && !sd_ready){
-		 if (v2_card){
-			 SD_SendCommand(55, 0x00000000, 0x01);
-		 }
+		 SD_SendCommand(55, 0x00000000, 0x01); // SEND CMD55 TO CHECK IF CARD IS READY FOR DATA TRANSFER
+
+	 	 if (v2_card){
+	 		 SD_SendCommand(41,0x40000000, 0x01);
+	 	 }
 		 else{
-			 SD_SendCommand(41,0x40000000, 0x01);
+			 SD_SendCommand(41,0x00000000, 0x01);
 		 }
 		 uint8_t response7 = SD_ReadR1();
 		 if (response7 == 0x00){
@@ -165,6 +171,15 @@ DSTATUS USER_initialize (
 		 tries--;
 			 Stat = sd_ready ? 0 : STA_NOINIT;
 
+	}
+		if (Stat == 0){
+			SD_SendCommand(58, 0x00000000, 0x01); // SEND CMD58 TO DETERMINE ADDRESSING MODE OF CARD
+			uint8_t ocr_response[5];
+			SD_ReadR7(ocr_response);
+			hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8; // INCREASE SPI1 BAUD RATE TO 11.25 MBITS/S (original)
+			HAL_SPI_Init(&hspi1); // UPDATE SPI1
+
+	block_addressing = (ocr_response[1] & 0x40) != 0;
 	 }
 	 return Stat;
     /* USER CODE END INIT */
