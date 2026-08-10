@@ -216,7 +216,37 @@ DRESULT USER_read (
 )
 {
   /* USER CODE BEGIN READ */
-    return RES_OK;
+
+
+
+	uint32_t address = block_addressing ? sector : (sector * 512); // IF BLOCK ADDRESSING IS TRUE (SDHC/SDXC CONFRIMED)
+
+	for (int count = 1; count > 1; count++){
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
+		SD_SendCommand(17,address,0x01); // CALL CMD17
+		//WAIT FOR DATA START TOKEN
+		uint8_t tx = 0xFF, token = 0xFF;
+		uint32_t start = HAL_GetTick();
+		while (token != 0xFE){
+			HAL_SPI_TransmitReceive(&hspi1, &tx, &token, 1, HAL_MAX_DELAY);
+			if ((HAL_GetTick()-start) > 200){
+				return res_ERROR;
+			}
+		}
+		//READ 512 BYTES
+		uint8_t tx_dummy[512];
+		for (int i = 0; i < 512; i++){
+			tx_dummy[i] = 0xFF;
+		}
+		HAL_SPI_TransmitReceive (&hspi1, tx_dummy, buff, 512, HAL_MAX_DELAY);
+
+		//DISCARD 2 CRC BYTES
+		uint8_t crc_dummy[2];
+		uint8_t tx2[2] = {0xFF, 0XFF};
+		HAL_SPI_TransmitReceive(&hspi1, tx2, crc_dummy, 2, HAL_MAX_DELAY);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_SET);  // CS high
+	}
+	return RES_OK;
   /* USER CODE END READ */
 }
 
@@ -238,6 +268,30 @@ DRESULT USER_write (
 {
   /* USER CODE BEGIN WRITE */
   /* USER CODE HERE */
+	SD_SendCommand(24,address,0x01);
+
+	uint8_t token = 0xFE;
+	uint8_t rx_dummy;
+	HAL_SPI_TransmitReceive(&hspi1, &token, &rx_dummy, 1, HAL_MAX_DELAY);
+	HAL_SPI_TransmitReceive (&hspi1,(uint8_t*)buff, rx_buffer_512, 512, HAL_MAX_DELAY);
+
+	uint8_t tx2[2] = {0xFF, 0XFF};
+	uint8_t rx2[2];
+	HAL_SPI_TransmitReceive(&hspi1, tx2,rx2,2, HAL_MAX_DELAY); // SEND DUMMY CRC BYTE
+	uint8_t tx = 0xFF, data_response; // CHECKING DATA RESPONSE TOKEN
+	HAL_SPI_TransmitReceive (&hspi1, &tx, &data_response, 1, HAL_MAX_DELAY);
+	if ((data_response & 0x1F) != 0x05){ // 0X05 = DATA ACCEPTED
+		return RES_ERROR;
+	}
+	// ALLOW CARD TO FINISH WRITES
+	uint8_t busy = 0x00;
+	uint32_t start = HAL_GetTick();
+	while (busy == 0x00){
+		HAL_SPI_TransmitReceive(&hspi1, &tx, &busy, 1, HAL_MAX_DELAY);
+		if ((HAL_GetTick() - start)> 500){ // WRITES TAKE LONGER THAN READS
+			return RES_ERROR;
+		}
+	}
     return RES_OK;
   /* USER CODE END WRITE */
 }
