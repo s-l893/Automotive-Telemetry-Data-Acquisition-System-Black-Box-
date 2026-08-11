@@ -217,11 +217,8 @@ DRESULT USER_read (
 {
   /* USER CODE BEGIN READ */
 
-
-
-	uint32_t address = block_addressing ? sector : ((sector + s) * 512); // IF BLOCK ADDRESSING IS TRUE (SDHC/SDXC CONFRIMED)
-
-	for (int s = 1; s < count; s++){
+	for (int s = 0; s < count; s++){
+		uint32_t address = block_addressing ? sector : ((sector + s) * 512); // IF BLOCK ADDRESSING IS TRUE (SDHC/SDXC CONFRIMED)
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
 		SD_SendCommand(17,address,0x01); // CALL CMD17
 		//WAIT FOR DATA START TOKEN
@@ -296,6 +293,7 @@ DRESULT USER_write (
 			return RES_ERROR;
 		}
 	}
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_SET);  // CS high
     return RES_OK;
   /* USER CODE END WRITE */
 }
