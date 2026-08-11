@@ -219,9 +219,9 @@ DRESULT USER_read (
 
 
 
-	uint32_t address = block_addressing ? sector : (sector * 512); // IF BLOCK ADDRESSING IS TRUE (SDHC/SDXC CONFRIMED)
+	uint32_t address = block_addressing ? sector : ((sector + s) * 512); // IF BLOCK ADDRESSING IS TRUE (SDHC/SDXC CONFRIMED)
 
-	for (int count = 1; count > 1; count++){
+	for (int s = 1; s < count; s++){
 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_RESET);  // CS low
 		SD_SendCommand(17,address,0x01); // CALL CMD17
 		//WAIT FOR DATA START TOKEN
@@ -230,7 +230,7 @@ DRESULT USER_read (
 		while (token != 0xFE){
 			HAL_SPI_TransmitReceive(&hspi1, &tx, &token, 1, HAL_MAX_DELAY);
 			if ((HAL_GetTick()-start) > 200){
-				return res_ERROR;
+				return RES_ERROR;
 			}
 		}
 		//READ 512 BYTES
@@ -238,7 +238,7 @@ DRESULT USER_read (
 		for (int i = 0; i < 512; i++){
 			tx_dummy[i] = 0xFF;
 		}
-		HAL_SPI_TransmitReceive (&hspi1, tx_dummy, buff, 512, HAL_MAX_DELAY);
+		HAL_SPI_TransmitReceive (&hspi1, tx_dummy, buff + s * 512, 512, HAL_MAX_DELAY);
 
 		//DISCARD 2 CRC BYTES
 		uint8_t crc_dummy[2];
@@ -268,16 +268,20 @@ DRESULT USER_write (
 {
   /* USER CODE BEGIN WRITE */
   /* USER CODE HERE */
-	SD_SendCommand(24,address,0x01);
+  	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_12, GPIO_PIN_RESET); // CS LOW
+	SD_SendCommand(24,address,0x01); // CMD 24
 
 	uint8_t token = 0xFE;
 	uint8_t rx_dummy;
+	uint32_t rx_buffer_512[512];
+	uint32_t address = block_addressing ? sector : ((sector + s) * 512);
+
 	HAL_SPI_TransmitReceive(&hspi1, &token, &rx_dummy, 1, HAL_MAX_DELAY);
 	HAL_SPI_TransmitReceive (&hspi1,(uint8_t*)buff, rx_buffer_512, 512, HAL_MAX_DELAY);
 
 	uint8_t tx2[2] = {0xFF, 0XFF};
 	uint8_t rx2[2];
-	HAL_SPI_TransmitReceive(&hspi1, tx2,rx2,2, HAL_MAX_DELAY); // SEND DUMMY CRC BYTE
+	HAL_SPI_TransmitReceive(&hspi1, tx2,rx2,2, HAL_MAX_DELAY); // SEND DUMMY CRC BYTE IN EXCHANGE FOR DATA RESPONSE
 	uint8_t tx = 0xFF, data_response; // CHECKING DATA RESPONSE TOKEN
 	HAL_SPI_TransmitReceive (&hspi1, &tx, &data_response, 1, HAL_MAX_DELAY);
 	if ((data_response & 0x1F) != 0x05){ // 0X05 = DATA ACCEPTED
