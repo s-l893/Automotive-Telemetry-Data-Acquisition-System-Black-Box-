@@ -51,6 +51,7 @@ void SYS_FSM_TICK(void){
     case SYS_LOGGING:
         if (can_frame_received_flag){
             last_can_frame = HAL_GetTick();
+            can_frame_received_flag = false;
         }
         else{
             can_timer = HAL_GetTick(); // NON BLOCKING ARCHITECTURE
