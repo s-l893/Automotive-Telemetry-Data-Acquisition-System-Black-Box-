@@ -29,6 +29,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "can_handler.h"
+#include "sd_logger.h"
+#include "fsm_sys.h"
 
 /* USER CODE END Includes */
 
@@ -106,9 +109,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
-  peripherals_init &= sd_mount;
+
   SD_Logger_Init();
-  start_new_session_file();
+  peripherals_init &= sd_mount;
+  /* Session files are opened by SYS_FSM on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
 
   CAN_TxHeaderTypeDef tx_header;
   uint8_t tx_data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
@@ -128,7 +132,7 @@ int main(void)
   {
 	  SYS_FSM_TICK();
 	  CAN_Handler_RecoverBusOff();
-	  HAL_IWDG_Refrech(&hiwdg);
+	  HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
