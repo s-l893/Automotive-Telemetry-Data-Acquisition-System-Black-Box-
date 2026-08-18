@@ -5,6 +5,7 @@
  *      Author: Sunny Lin
  */
 #include "gps_driver.h"
+#include "main.h"
 #include <stdbool.h>
 
 
@@ -19,7 +20,6 @@ gps_data_t gps;
 
 void GPS_Driver_Init(void){
 	gps.locked = false;
-	static float gps_start = HAL_GetTick();
 	gps.speed = 0.0;
 	gps.latitude = 0.0;
 	gps.longitude = 0.0;
