@@ -14,6 +14,7 @@ typedef struct {
 	bool sd_fault; // HARD FAULT
 	bool gps_fault; // SOFT FAULT
 	bool imu_fault; // SOFT FAULT
+	bool imu_handshake_fault; // SOFT FAULT
 	bool can_fault; // HARD FAULT
 } fault_flags_t;
 
