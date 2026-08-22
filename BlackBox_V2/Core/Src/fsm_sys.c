@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "main.h"
+#include "imu.h"
 
 #define IDLE_SHUTDOWN_TIMEOUT_MS 300000
 // VARIABLE DECLARATION

@@ -26,12 +26,15 @@
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
-#include "imu.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "imu.h"
 #include "can_handler.h"
 #include "sd_logger.h"
 #include "fsm_sys.h"
+#include "fault.h"
+#include <stdio.h>
+#include <string.h>
 
 /* USER CODE END Includes */
 
@@ -108,12 +111,15 @@ int main(void)
   MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 
+  MX_USART2_UART_Init();
+
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
 
   SD_Logger_Init();
 
-  imu_init(); // IMU INIT
   peripherals_init &= sd_mount;
+
+  imu_init(); // IMU INIT
   /* Session files are opened by SYS_FSM on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
 
   CAN_TxHeaderTypeDef tx_header;
@@ -126,6 +132,21 @@ int main(void)
   tx_header.TransmitGlobalTime = DISABLE;
   HAL_CAN_AddTxMessage(&hcan1, &tx_header, tx_data, &tx_mailbox);
 
+  /* TEMP: USART2 IMU monitor. Remove with MX_USART2_UART_Init when done. */
+  {
+    char line[128];
+    DBG_Print("\r\n======== IMU USART2 TEST ========\r\n");
+    DBG_Print("115200 8N1  |  tilt the board; sitting still after cal should be near 0\r\n");
+    snprintf(line, sizeof(line), "WHO_AM_I=0x%02X (want 0x68)  imu_fault=%u handshake_fault=%u\r\n",
+             imu_who_am_i,
+             (unsigned)fault_flags.imu_fault,
+             (unsigned)fault_flags.imu_handshake_fault);
+    DBG_Print(line);
+    snprintf(line, sizeof(line), "offsets ax=%d ay=%d az=%d\r\n",
+             imu_offset.offset_x, imu_offset.offset_y, imu_offset.offset_z);
+    DBG_Print(line);
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -134,6 +155,24 @@ int main(void)
   {
 	  SYS_FSM_TICK();
 	  CAN_Handler_RecoverBusOff();
+
+	  /* TEMP: print IMU at 5 Hz */
+	  {
+		  static uint32_t last_imu_print = 0;
+		  uint32_t now = HAL_GetTick();
+		  if ((now - last_imu_print) >= 200U) {
+			  char line[128];
+			  imu_read();
+			  snprintf(line, sizeof(line), "t=%lu  ax=%d ay=%d az=%d  f=%u hs=%u\r\n",
+			           (unsigned long)imu.timestamp,
+			           imu.accel_x, imu.accel_y, imu.accel_z,
+			           (unsigned)fault_flags.imu_fault,
+			           (unsigned)fault_flags.imu_handshake_fault);
+			  DBG_Print(line);
+			  last_imu_print = now;
+		  }
+	  }
+
 	  HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */
 
