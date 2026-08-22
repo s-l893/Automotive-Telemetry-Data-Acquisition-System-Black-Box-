@@ -111,6 +111,8 @@ int main(void)
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
 
   SD_Logger_Init();
+
+  imu_init(); // IMU INIT
   peripherals_init &= sd_mount;
   /* Session files are opened by SYS_FSM on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
 

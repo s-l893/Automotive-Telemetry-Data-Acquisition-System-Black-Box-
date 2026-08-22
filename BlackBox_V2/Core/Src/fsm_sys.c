@@ -34,6 +34,7 @@ void SYS_FSM_TICK(void){
             fault_flags.sd_fault = true;
             current_state = SYS_FAULT;
         }
+
     break;
     case SYS_IDLE:
         imu_read();
@@ -50,7 +51,6 @@ void SYS_FSM_TICK(void){
         }
         break;
     case SYS_LOGGING:
-        imu_read();
         if (can_frame_received_flag){
             last_can_frame = HAL_GetTick();
             can_frame_received_flag = false;
@@ -63,6 +63,7 @@ void SYS_FSM_TICK(void){
             }
         }
         SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
+        imu_read(); // READ IMU DATA
         break;
 
     case SYS_FAULT: // MIGHT WANT TO ADD SOMETHING HERE FOR CAN LATER ON
