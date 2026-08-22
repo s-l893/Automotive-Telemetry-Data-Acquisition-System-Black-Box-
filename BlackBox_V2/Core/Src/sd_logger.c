@@ -11,6 +11,7 @@
 #include "main.h"
 #include "can_handler.h"
 #include <stdio.h>
+#include "imu.h"
 
 FATFS fs;
 FIL log_file;
@@ -19,6 +20,9 @@ FIL log_file;
 char filename[32];
 
 volatile bool sd_mount = false;
+
+// timer for faster imu polls
+static uint32_t last_row_write_time = 0;
 
 bool SD_Logger_Init(void) {
 	/* Immediate mount (opt = 1) also runs USER_initialize through FatFs */
@@ -90,10 +94,20 @@ void SD_Logger_DrainCAN(void){
 				padded_data[j] = frame.data[j];
 			}
 		}
-		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", frame.timestamp, frame.id, frame.dlc, padded_data[0], padded_data[1], padded_data[2], padded_data[3],
-		        padded_data[4], padded_data[5], padded_data[6], padded_data[7]);
+		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", frame.timestamp, frame.id, frame.dlc, padded_data[0], padded_data[1], padded_data[2], padded_data[3],
+		        padded_data[4], padded_data[5], padded_data[6], padded_data[7], imu.accel_x, imu.accel_y, imu.accel_z);
 		offset += written;
+		last_row_write_time = HAL_GetTick();
 	}
+
+	if (offset == 0){ // TIMEOUT FEATURE FOR EMPTY CAN ROWS WITH IMU DATA
+		if ((HAL_GetTick() - last_row_write_time) >= 200){
+			int imu_written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", HAL_GetTick(), 0xFFFFUL, 0, 0, 0, 0, 0, 0, 0, 0, 0, imu.accel_x, imu.accel_y, imu.accel_z);
+			offset += imu_written;
+			last_row_write_time = HAL_GetTick();
+		}
+	}
+
 	if (offset > 0){
 		FRESULT verify = f_write(&log_file, csv_buffer, offset, &bytes_written);
 		if (verify != FR_OK){

@@ -33,7 +33,7 @@ typedef struct {
 
 imu_calibration imu_offset;
 
-void imu_read(){
+void imu_read(void){
 	if (!fault_flags.imu_fault && !fault_flags.imu_handshake_fault ){
 		uint8_t buffer[6];
 		HAL_StatusTypeDef accel_status =  HAL_I2C_Mem_Read(&hi2c1, WRITE_ADDRESS, 59, I2C_MEMADD_SIZE_8BIT, buffer, 6, 100);
@@ -50,7 +50,7 @@ void imu_read(){
 	}
 }
 
-void imu_calibrate(){
+void imu_calibrate(void){ // ZERO CALIBRATION UPON START
 	int32_t sum_x = 0;
 	int32_t sum_y = 0;
 	int32_t sum_z = 0;
@@ -70,7 +70,7 @@ void imu_calibrate(){
 	}
 }
 
-void imu_init(){
+void imu_init(void){
 
 	uint8_t sleep_bit = 0x00;
 	uint8_t who_bit;
