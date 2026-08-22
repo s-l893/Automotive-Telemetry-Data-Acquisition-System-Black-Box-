@@ -36,6 +36,7 @@ void SYS_FSM_TICK(void){
         }
     break;
     case SYS_IDLE:
+        imu_read();
         if (can_frame_received_flag){
             current_state = SYS_LOGGING;
             start_new_session_file();
@@ -49,6 +50,7 @@ void SYS_FSM_TICK(void){
         }
         break;
     case SYS_LOGGING:
+        imu_read();
         if (can_frame_received_flag){
             last_can_frame = HAL_GetTick();
             can_frame_received_flag = false;
