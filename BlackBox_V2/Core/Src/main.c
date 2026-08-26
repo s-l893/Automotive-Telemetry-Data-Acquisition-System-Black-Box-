@@ -110,8 +110,9 @@ int main(void)
   MX_USART3_UART_Init();
   MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
-
+  /* USART2 first so imu_init debug lines are visible on VCP */
   MX_USART2_UART_Init();
+  imu_init(); // IMU INIT
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
 
@@ -119,7 +120,7 @@ int main(void)
 
   peripherals_init &= sd_mount;
 
-  imu_init(); // IMU INIT
+
   /* Session files are opened by SYS_FSM on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
 
   CAN_TxHeaderTypeDef tx_header;
@@ -142,6 +143,11 @@ int main(void)
              (unsigned)fault_flags.imu_fault,
              (unsigned)fault_flags.imu_handshake_fault);
     DBG_Print(line);
+    snprintf(line, sizeof(line), "Mem_Write PWR_MGMT1 HAL=%d  Mem_Read WHO_AM_I HAL=%d  I2C_ErrorCode=0x%lX\r\n",
+             (int)imu_wake_write_status, (int)imu_who_read_status,
+             (unsigned long)hi2c1.ErrorCode);
+    DBG_Print(line);
+    DBG_Print("HAL: 0=OK  1=ERROR  2=BUSY  3=TIMEOUT\r\n");
     snprintf(line, sizeof(line), "offsets ax=%d ay=%d az=%d\r\n",
              imu_offset.offset_x, imu_offset.offset_y, imu_offset.offset_z);
     DBG_Print(line);
@@ -163,11 +169,12 @@ int main(void)
 		  if ((now - last_imu_print) >= 200U) {
 			  char line[128];
 			  imu_read();
-			  snprintf(line, sizeof(line), "t=%lu  ax=%d ay=%d az=%d  f=%u hs=%u\r\n",
+			  snprintf(line, sizeof(line), "t=%lu  ax=%d ay=%d az=%d  f=%u hs=%u  accel_HAL=%d\r\n",
 			           (unsigned long)imu.timestamp,
 			           imu.accel_x, imu.accel_y, imu.accel_z,
 			           (unsigned)fault_flags.imu_fault,
-			           (unsigned)fault_flags.imu_handshake_fault);
+			           (unsigned)fault_flags.imu_handshake_fault,
+			           (int)imu_accel_read_status);
 			  DBG_Print(line);
 			  last_imu_print = now;
 		  }

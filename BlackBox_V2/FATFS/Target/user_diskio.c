@@ -457,7 +457,6 @@ DRESULT USER_ioctl (
 	        default:
 	            return RES_PARERR;
 	    }
-	}
   /* USER CODE END IOCTL */
-
+}
 #endif /* _USE_IOCTL == 1 */
