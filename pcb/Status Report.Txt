@@ -1,0 +1,20 @@
+Output: Gerber Files
+Type  : Gerber
+From  : Variant [[No Variations]] of Project [Free Documents]
+   Generated File[V2_PCB_FIXED.GTO]
+   Generated File[V2_PCB_FIXED.GTP]
+   Generated File[V2_PCB_FIXED.GTS]
+   Generated File[V2_PCB_FIXED.GTL]
+   Generated File[V2_PCB_FIXED.GBL]
+   Generated File[V2_PCB_FIXED.GBS]
+   Generated File[V2_PCB_FIXED.GBP]
+   Generated File[V2_PCB_FIXED.GBO]
+   Generated File[V2_PCB_FIXED.GM]
+   Generated File[V2_PCB_FIXED.EXTREP]
+   Generated File[V2_PCB_FIXED.REP]
+
+
+Files Generated   : 11
+Documents Printed : 0
+
+Finished Output Generation At 4:20:28 AM On 8/27/2026
