@@ -33,8 +33,10 @@
 #include "sd_logger.h"
 #include "fsm_sys.h"
 #include "fault.h"
+#include "gps_driver.h"
 #include <stdio.h>
 #include <string.h>
+
 
 /* USER CODE END Includes */
 
@@ -113,6 +115,7 @@ int main(void)
   /* USART2 first so imu_init debug lines are visible on VCP */
   MX_USART2_UART_Init();
   imu_init(); // IMU INIT
+  GPS_Driver_Init();
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
 

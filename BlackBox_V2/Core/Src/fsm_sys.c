@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include "main.h"
 #include "imu.h"
+#include "gps_driver.h"
 
 #define IDLE_SHUTDOWN_TIMEOUT_MS 300000
 // VARIABLE DECLARATION
@@ -39,6 +40,7 @@ void SYS_FSM_TICK(void){
     break;
     case SYS_IDLE:
         imu_read();
+        GPS_Driver_update();
         if (can_frame_received_flag){
             current_state = SYS_LOGGING;
             start_new_session_file();
@@ -64,6 +66,7 @@ void SYS_FSM_TICK(void){
             }
         }
         SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
+        GPS_Driver_Update();
         imu_read(); // READ IMU DATA
         break;
 
