@@ -37,6 +37,8 @@
 #include "ff_gen_drv.h"
 #include <stdbool.h>
 #include "spi.h"
+#include "iwdg.h"
+#include "sd_spi_bus.h" /* Cube-safe helpers — not regenerated with this file */
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -69,77 +71,6 @@ Diskio_drvTypeDef  USER_Driver =
 #endif /* _USE_IOCTL == 1 */
 };
 
-static void SD_CS_High(void)
-{
-	HAL_GPIO_WritePin(CS_SPI1_GPIO_Port, CS_SPI1_Pin, GPIO_PIN_SET); // CS high (PC12)
-}
-
-static void SD_CS_Low(void)
-{
-	HAL_GPIO_WritePin(CS_SPI1_GPIO_Port, CS_SPI1_Pin, GPIO_PIN_RESET); // CS low
-}
-
-/* Release DO: CS high + one dummy clock so card releases MISO */
-static void SD_Deselect(void)
-{
-	uint8_t dummy = 0xFF;
-	uint8_t rx;
-	SD_CS_High();
-	HAL_SPI_TransmitReceive(&hspi1, &dummy, &rx, 1, HAL_MAX_DELAY);
-}
-
-static void SD_Select(void)
-{
-	SD_CS_Low();
-}
-
-/* 8 clocks with CS unchanged — lets the card align to a byte boundary */
-static void SD_Dummy(void)
-{
-	uint8_t tx = 0xFF, rx;
-	HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, HAL_MAX_DELAY);
-}
-
-void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc){ // Credit to Claude
-    uint8_t frame[6];
-    frame[0] = 0x40 | cmd;           // command byte: 0x40 OR'd with command number
-    frame[1] = (uint8_t)(arg >> 24); // argument, MSB first
-    frame[2] = (uint8_t)(arg >> 16);
-    frame[3] = (uint8_t)(arg >> 8);
-    frame[4] = (uint8_t)(arg);
-    frame[5] = crc;
-
-    uint8_t rx;
-    for (int i = 0; i < 6; i++){
-        HAL_SPI_TransmitReceive(&hspi1, &frame[i], &rx, 1, HAL_MAX_DELAY);
-    }
-}
-
-void SD_ReadR7(uint8_t *response){ // EXTENSION OF R1 BYTE
-	uint8_t tx = 0xFF, rx = 0xFF;
-	int timeout = 1000;
-	while (timeout--){
-		HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, HAL_MAX_DELAY);
-		if ((rx & 0x80) == 0) break;
-	}
-	response[0] = rx;
-
-	for (int i = 1; i<5; i++){
-		HAL_SPI_TransmitReceive(&hspi1,&tx, &rx, 1, HAL_MAX_DELAY);
-		response[i]	= rx;
-	}
-}
-
-uint8_t SD_ReadR1(void){
-    uint8_t tx = 0xFF, rx = 0xFF;
-    int timeout = 1000; // was 10 — too short for some cards after power-up
-    while (timeout--){
-        HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, HAL_MAX_DELAY);
-        if ((rx & 0x80) == 0) break;
-    }
-    return rx;
-}
-
 /* Private functions ---------------------------------------------------------*/
 
 /**
@@ -149,7 +80,6 @@ uint8_t SD_ReadR1(void){
   */
 DSTATUS USER_initialize (
 	BYTE pdrv           /* Physical drive nmuber to identify the drive */
-
 )
 {
   /* USER CODE BEGIN INIT */
@@ -161,21 +91,28 @@ DSTATUS USER_initialize (
 	(void)pdrv;
 	Stat = STA_NOINIT;
 	block_addressing = false;
+	sd_fail_stage = 0;
+	sd_last_r1 = 0xFF;
+	sd_m0_r1 = 0xFF;
+	sd_m3_r1 = 0xFF;
+	sd_bus_idle = 0x00;
 
-	HAL_Delay(10);
+	HAL_IWDG_Refresh(&hiwdg);
+	/* Spec wants >=1ms after power; this module also needs CS high settle */
+	HAL_Delay(50);
 
 	/*
-	 * This module: Mode0 CMD0 enters SPI mode (R1 may be mis-sampled);
+	 * This module: Mode0 CMD0 enters SPI mode (R1 may be mis-sampled as 0x7F);
 	 * Mode3 is used afterward for reliable R1 and the rest of init/transfers.
 	 */
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
-	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-	HAL_SPI_Init(&hspi1);
+	SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_256, SPI_POLARITY_LOW, SPI_PHASE_1EDGE);
 
-	SD_CS_High();
-	for (int i = 0; i < 10; i++){
+	SD_Deselect();
+	for (int i = 0; i < 80; i++){ /* >=74 clocks with CS high */
 		HAL_SPI_TransmitReceive(&hspi1, &dummy, &rx, 1, HAL_MAX_DELAY);
+		if (i == 0) {
+			sd_bus_idle = rx; /* pull-up idle should be 0xFF; 0x00 => MISO stuck low */
+		}
 	}
 
 	for (cmd0_tries = 0; cmd0_tries < 10; cmd0_tries++){
@@ -184,20 +121,22 @@ DSTATUS USER_initialize (
 		SD_SendCommand(0, 0x00000000, 0x95);
 		response = SD_ReadR1();
 		SD_Deselect();
-		if (response != 0xFF){
+		/* This module often returns 0x7F on Mode0 (bit mis-sample), not silent 0xFF.
+		 * 0x00 is NOT a valid “answered” — usually MISO stuck low. */
+		if (response == 0x01 || response == 0x7F){
 			break;
 		}
 	}
-	if (response == 0xFF){
+	sd_m0_r1 = response;
+	sd_last_r1 = response;
+	if (response != 0x01 && response != 0x7F){
+		sd_fail_stage = 1;
 		return Stat;
 	}
 
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
-	hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
-	hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
-	HAL_SPI_Init(&hspi1);
+	SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_256, SPI_POLARITY_HIGH, SPI_PHASE_2EDGE);
 
-	SD_CS_High();
+	SD_Deselect();
 	for (int i = 0; i < 10; i++){
 		HAL_SPI_TransmitReceive(&hspi1, &dummy, &rx, 1, HAL_MAX_DELAY);
 	}
@@ -213,7 +152,10 @@ DSTATUS USER_initialize (
 			break;
 		}
 	}
+	sd_m3_r1 = response;
+	sd_last_r1 = response;
 	if (response != 0x01){
+		sd_fail_stage = 2;
 		return Stat;
 	}
 
@@ -235,6 +177,7 @@ DSTATUS USER_initialize (
 	uint32_t iter;
 
 	for (iter = 0; iter < 100 && !sd_ready; iter++){
+		HAL_IWDG_Refresh(&hiwdg);
 		SD_Select();
 		SD_Dummy();
 		SD_SendCommand(55, 0x00000000, 0x65);
@@ -251,6 +194,7 @@ DSTATUS USER_initialize (
 		SD_SendCommand(41, v2_card ? 0x40000000 : 0x00000000, 0x77);
 		response = SD_ReadR1();
 		SD_Deselect();
+		sd_last_r1 = response;
 
 		if (response == 0x00){
 			sd_ready = true;
@@ -263,6 +207,7 @@ DSTATUS USER_initialize (
 	}
 
 	if (!sd_ready){
+		sd_fail_stage = 3;
 		return Stat;
 	}
 
@@ -281,20 +226,20 @@ DSTATUS USER_initialize (
 		SD_SendCommand(16, 512, 0x01);
 		response = SD_ReadR1();
 		SD_Deselect();
+		sd_last_r1 = response;
 		if (response != 0x00){
+			sd_fail_stage = 4;
 			return Stat;
 		}
 	}
 
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-	hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
-	hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
-	HAL_SPI_Init(&hspi1);
+	SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_8, SPI_POLARITY_HIGH, SPI_PHASE_2EDGE);
 
 	Stat = 0;
+	sd_fail_stage = 0;
 	SD_Deselect();
 	return Stat;
-    /* USER CODE END INIT */
+  /* USER CODE END INIT */
 }
 
 /**

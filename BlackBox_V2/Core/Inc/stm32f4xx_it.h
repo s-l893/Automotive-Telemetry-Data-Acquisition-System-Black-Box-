@@ -58,6 +58,7 @@ void SysTick_Handler(void);
 void CAN1_RX0_IRQHandler(void);
 void CAN1_SCE_IRQHandler(void);
 void EXTI15_10_IRQHandler(void);
+void UART4_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */

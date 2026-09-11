@@ -40,7 +40,7 @@ void SYS_FSM_TICK(void){
     break;
     case SYS_IDLE:
         imu_read();
-        GPS_Driver_update();
+        GPS_Driver_Update();
         if (can_frame_received_flag){
             current_state = SYS_LOGGING;
             start_new_session_file();

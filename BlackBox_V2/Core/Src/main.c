@@ -26,6 +26,7 @@
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "imu.h"
@@ -34,9 +35,9 @@
 #include "fsm_sys.h"
 #include "fault.h"
 #include "gps_driver.h"
-#include <stdio.h>
-#include <string.h>
-
+#include "imu_selftest.h"
+#include "imu_pipeline_test.h"
+#include "sd_spi_bus.h"
 
 /* USER CODE END Includes */
 
@@ -47,7 +48,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+/* IMU self-test enable lives in imu_selftest.h (IMU_SELFTEST_ENABLE). */
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -112,16 +113,36 @@ int main(void)
   MX_USART3_UART_Init();
   MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
-  /* USART2 first so imu_init debug lines are visible on VCP */
+  /* Re-apply after MX_GPIO_Init — Cube regen often forces CS idle low */
+  SD_CS_ForceIdleHigh();
+
+#if IMU_SELFTEST_ENABLE
+  /* TEMP: USART2 driver unit-test. Disable when doing pipeline CSV tests. */
   MX_USART2_UART_Init();
+  IMU_SelfTest_Run(); /* calls real imu_init() / imu_calibrate() */
+#else
+#if IMU_PIPELINE_TEST_ENABLE
+  /* USART2 up before mount so SDMOUNT line is visible on ST-Link VCP */
+  IMU_PipelineTest_Init();
+#else
+  MX_USART2_UART_Init();
+#endif
+  /* TEMP: full SD SPI probe (CS / idle MISO / Mode0+Mode3 CMD0) */
+  SD_SPI_DebugProbe();
+  /* Mount SD before long IMU calibrate — isolates SPI bring-up */
+  SD_Logger_Init();
+  peripherals_init &= sd_mount;
+
   imu_init(); // IMU INIT
+#endif
   GPS_Driver_Init();
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
 
+#if IMU_SELFTEST_ENABLE
   SD_Logger_Init();
-
   peripherals_init &= sd_mount;
+#endif
 
 
   /* Session files are opened by SYS_FSM on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
@@ -136,26 +157,6 @@ int main(void)
   tx_header.TransmitGlobalTime = DISABLE;
   HAL_CAN_AddTxMessage(&hcan1, &tx_header, tx_data, &tx_mailbox);
 
-  /* TEMP: USART2 IMU monitor. Remove with MX_USART2_UART_Init when done. */
-  {
-    char line[128];
-    DBG_Print("\r\n======== IMU USART2 TEST ========\r\n");
-    DBG_Print("115200 8N1  |  tilt the board; sitting still after cal should be near 0\r\n");
-    snprintf(line, sizeof(line), "WHO_AM_I=0x%02X (want 0x68)  imu_fault=%u handshake_fault=%u\r\n",
-             imu_who_am_i,
-             (unsigned)fault_flags.imu_fault,
-             (unsigned)fault_flags.imu_handshake_fault);
-    DBG_Print(line);
-    snprintf(line, sizeof(line), "Mem_Write PWR_MGMT1 HAL=%d  Mem_Read WHO_AM_I HAL=%d  I2C_ErrorCode=0x%lX\r\n",
-             (int)imu_wake_write_status, (int)imu_who_read_status,
-             (unsigned long)hi2c1.ErrorCode);
-    DBG_Print(line);
-    DBG_Print("HAL: 0=OK  1=ERROR  2=BUSY  3=TIMEOUT\r\n");
-    snprintf(line, sizeof(line), "offsets ax=%d ay=%d az=%d\r\n",
-             imu_offset.offset_x, imu_offset.offset_y, imu_offset.offset_z);
-    DBG_Print(line);
-  }
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -164,24 +165,9 @@ int main(void)
   {
 	  SYS_FSM_TICK();
 	  CAN_Handler_RecoverBusOff();
-
-	  /* TEMP: print IMU at 5 Hz */
-	  {
-		  static uint32_t last_imu_print = 0;
-		  uint32_t now = HAL_GetTick();
-		  if ((now - last_imu_print) >= 200U) {
-			  char line[128];
-			  imu_read();
-			  snprintf(line, sizeof(line), "t=%lu  ax=%d ay=%d az=%d  f=%u hs=%u  accel_HAL=%d\r\n",
-			           (unsigned long)imu.timestamp,
-			           imu.accel_x, imu.accel_y, imu.accel_z,
-			           (unsigned)fault_flags.imu_fault,
-			           (unsigned)fault_flags.imu_handshake_fault,
-			           (int)imu_accel_read_status);
-			  DBG_Print(line);
-			  last_imu_print = now;
-		  }
-	  }
+#if IMU_SELFTEST_ENABLE
+	  IMU_SelfTest_Tick(); /* samples via real imu_read() */
+#endif
 
 	  HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */
