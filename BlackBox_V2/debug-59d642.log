@@ -1,3 +1,0 @@
-{"sessionId":"59d642","runId":"post-fix","hypothesisId":"H","location":"imu.c:imu_init:scan","message":"bus_scan_hits","data":{"d0":104,"d1":255,"d2":255,"d3":1},"timestamp":74}
-{"sessionId":"59d642","runId":"post-fix","hypothesisId":"B","location":"imu.c:imu_init:after_who","message":"who_read_result","data":{"d0":0,"d1":0,"d2":104,"d3":32},"timestamp":104}
-{"sessionId":"59d642","runId":"post-fix","location":"main","message":"who_am_i_ok","data":{"who":104,"imu_fault":0,"handshake_fault":0,"accel_hal":0},"timestamp":0}

@@ -12,14 +12,9 @@
 extern "C" {
 #endif
 
-/* TEMP: 1 = SD CS on PC4 (was PC12 / CS_SPI1). Set 0 to restore. */
+/* Production SD CS on PC4 (was PC12 / CS_SPI1). Set 0 only for legacy wiring. */
 #ifndef SD_CS_USE_PC4
 #define SD_CS_USE_PC4 1
-#endif
-
-/* TEMP: ST-Link VCP USART2 @ 115200 SD SPI probe. Set 0 when done. */
-#ifndef SD_SPI_DEBUG
-#define SD_SPI_DEBUG 1
 #endif
 
 /* Init breadcrumbs (0 = success) */
@@ -39,8 +34,6 @@ void SD_SPI_Reconfig(uint32_t baud, uint32_t cpol, uint32_t cpha);
 void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc);
 void SD_ReadR7(uint8_t *response);
 uint8_t SD_ReadR1(void);
-
-void SD_SPI_DebugProbe(void);
 
 #ifdef __cplusplus
 }
