@@ -36,7 +36,6 @@
 #include "fault.h"
 #include "gps_driver.h"
 #include "imu_selftest.h"
-#include "imu_pipeline_test.h"
 #include "sd_spi_bus.h"
 #include "display.h"
 
@@ -118,17 +117,11 @@ int main(void)
   SD_CS_ForceIdleHigh();
 
 #if IMU_SELFTEST_ENABLE
-  /* TEMP: USART2 driver unit-test. Disable when doing pipeline CSV tests. */
+  /* TEMP: USART2 driver unit-test (conflicts with LCD on PA2/PA3). */
   MX_USART2_UART_Init();
   IMU_SelfTest_Run(); /* calls real imu_init() / imu_calibrate() */
 #else
-#if IMU_PIPELINE_TEST_ENABLE
-  /* USART2 up before mount so SDMOUNT line is visible on ST-Link VCP */
-  /* NOTE: USART2 steals PA2/PA3 — conflicts with display DC/RESET */
-  IMU_PipelineTest_Init();
-#else
   /* MX_USART2_UART_Init(); — do not enable while LCD uses PA2/PA3 */
-#endif
   /* Mount SD before long IMU calibrate — isolates SPI bring-up */
   SD_Logger_Init();
   peripherals_init &= sd_mount;
