@@ -3,7 +3,6 @@
 Host-side UNIT tester for the BlackBox IMU driver (imu.c only).
 
 This does NOT test SYS_LOGGING / SD CSV / 0xFFFF sentinels.
-For pipeline Steps 1–2 use: tools/test_imu_pipeline.py
 """
 
 Stages
