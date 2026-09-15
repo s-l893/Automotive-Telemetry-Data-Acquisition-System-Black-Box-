@@ -13,8 +13,6 @@
 #include "can_handler.h"
 #include <stdio.h>
 #include "imu.h"
-#include "imu_pipeline_test.h"
-#include "usart.h"
 
 FATFS fs;
 FIL log_file;
@@ -41,24 +39,6 @@ bool SD_Logger_Init(void) {
 		fault_flags.sd_fault = true;
 	}
 
-#if IMU_PIPELINE_TEST_ENABLE
-	{
-		char line[128];
-		snprintf(line, sizeof(line),
-		         "SDMOUNT res=%u stage=%u m0=0x%02X m3=0x%02X bus=0x%02X path='%s'\r\n",
-		         (unsigned)res, (unsigned)sd_fail_stage,
-		         (unsigned)sd_m0_r1, (unsigned)sd_m3_r1, (unsigned)sd_bus_idle,
-		         USERPath);
-		DBG_Print(line);
-		if (res != FR_OK) {
-			if (sd_bus_idle == 0x00 || sd_m0_r1 == 0x00 || sd_m3_r1 == 0x00) {
-				DBG_Print("SDMOUNT HINT: MISO stuck low? check PA6/DO, level shifter, module 3.3V\r\n");
-			} else {
-				DBG_Print("SDMOUNT HINT: expect m0=0x01|0x7F, m3=0x01, bus=0xFF\r\n");
-			}
-		}
-	}
-#endif
 	return sd_mount;
 }
 
@@ -104,7 +84,7 @@ void SD_Logger_DrainCAN(void){
 	can_frame_t frame;
 	int offset = 0;
 	UINT bytes_written = 0; // total bytes written
-	char csv_buffer[1024];  // batch several CAN frames into one FatFs write
+	char csv_buffer[2048];  // batch several CAN frames into one FatFs write
 
 	/* Limit work per FSM tick so logging does not block the rest of the system */
 	for (int i = 0; i < 16; i++){
@@ -122,15 +102,15 @@ void SD_Logger_DrainCAN(void){
 				padded_data[j] = frame.data[j];
 			}
 		}
-		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", frame.timestamp, frame.id, frame.dlc, padded_data[0], padded_data[1], padded_data[2], padded_data[3],
-		        padded_data[4], padded_data[5], padded_data[6], padded_data[7], imu.accel_x, imu.accel_y, imu.accel_z);
+		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%d,%d,%d\n", frame.timestamp, frame.id, frame.dlc, padded_data[0], padded_data[1], padded_data[2], padded_data[3],
+		        padded_data[4], padded_data[5], padded_data[6], padded_data[7], gps.latitude, gps.longitude, gps.speed, imu.accel_x, imu.accel_y, imu.accel_z);
 		offset += written;
 		last_row_write_time = HAL_GetTick();
 	}
 
 	if (offset == 0){ // TIMEOUT FEATURE FOR EMPTY CAN ROWS WITH IMU DATA
 		if ((HAL_GetTick() - last_row_write_time) >= 200){
-			int imu_written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", HAL_GetTick(), 0xFFFFUL, 0, 0, 0, 0, 0, 0, 0, 0, 0, imu.accel_x, imu.accel_y, imu.accel_z);
+			int imu_written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%d,%d,%d\n", HAL_GetTick(), 0xFFFFUL, 0, 0, 0, 0, 0, 0, 0, 0, 0, gps.latitude, gps.longitude, gps.speed, imu.accel_x, imu.accel_y, imu.accel_z);
 			offset += imu_written;
 			last_row_write_time = HAL_GetTick();
 		}
@@ -141,10 +121,6 @@ void SD_Logger_DrainCAN(void){
 		if (verify != FR_OK){
 			fault_flags.sd_fault = true;
 		}
-#if IMU_PIPELINE_TEST_ENABLE
-		/* Mirror exact bytes about to / just written so host can validate Steps 1–2 */
-		IMU_PipelineTest_MirrorCsvChunk(csv_buffer, offset);
-#endif
 	}
 }
 

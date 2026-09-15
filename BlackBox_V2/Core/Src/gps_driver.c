@@ -6,17 +6,20 @@
  */
 #include "gps_driver.h"
 #include "main.h"
+#include "fault.h"
 #include "usart.h"
 #include <stdlib.h>
 #include <string.h>
 
 #define NMEA_BUF_LEN 85
+#define GPS_TIMEOUT 1500
 
 static char nmea_buffer[NMEA_BUF_LEN];
 static char nmea_parse_buffer[NMEA_BUF_LEN];
 static volatile uint16_t nmea_index = 0;
 static volatile bool nmea_line_ready = false;
 static uint8_t rx_byte;
+static volatile uint32_t last_gps_activity_tick = 0;
 
 gps_data_t gps;
 
@@ -36,6 +39,13 @@ void GPS_Driver_Init(void){
 void GPS_Driver_Update(void){
 	if (nmea_line_ready){
 		rmc_splitter();
+	}
+	if (HAL_GetTick() - last_gps_activity_tick > GPS_TIMEOUT){
+		fault_flags.gps_fault = true;
+		gps.locked = false;
+	}
+	else {
+		fault_flags.gps_fault = false;
 	}
 }
 
@@ -94,6 +104,7 @@ static void rmc_splitter(void){
 	gps.latitude = parse_lat_long(lat_field, lat_hemi[0], 2);
 	gps.longitude = parse_lat_long(long_field, long_hemi[0], 3);
 	gps.speed = (float)atof(speed_field) * 1.852f; // KNOTS TO KM/H
+
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
@@ -109,6 +120,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			nmea_buffer[nmea_index] = '\0';
 			memcpy(nmea_parse_buffer, nmea_buffer, (size_t)nmea_index + 1U);
 			nmea_line_ready = true;
+			last_gps_activity_tick = HAL_GetTick();
 		}
 		nmea_index = 0;
 	}
