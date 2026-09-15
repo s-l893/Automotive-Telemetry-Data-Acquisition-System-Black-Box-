@@ -129,8 +129,6 @@ int main(void)
 #else
   /* MX_USART2_UART_Init(); — do not enable while LCD uses PA2/PA3 */
 #endif
-  /* TEMP: full SD SPI probe (CS / idle MISO / Mode0+Mode3 CMD0) */
-  SD_SPI_DebugProbe();
   /* Mount SD before long IMU calibrate — isolates SPI bring-up */
   SD_Logger_Init();
   peripherals_init &= sd_mount;
@@ -145,6 +143,8 @@ int main(void)
   LCD_Init();
   LCD_FillScreen(0x07E0);
   LCD_FillRect(0, 0, 20, 20, 0x001F); /* red smoke test */
+  /* LCD leaves SPI1 in Mode0; FatFs SD transfers expect Mode3 */
+  SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_8, SPI_POLARITY_HIGH, SPI_PHASE_2EDGE);
 
 #if IMU_SELFTEST_ENABLE
   SD_Logger_Init();

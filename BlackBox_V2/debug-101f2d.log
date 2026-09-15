@@ -1,5 +1,0 @@
-{"sessionId":"101f2d","runId":"loopback-shorted","hypothesisId":"A","location":"user-serial","message":"prior_loopback_ff_was_no_short","data":{"confirmed":true},"timestamp":1}
-{"sessionId":"101f2d","runId":"loopback-shorted","hypothesisId":"B","location":"user-serial","message":"spi_mosi_drives","data":{"echo_ok":1,"rx":"A5 5A 00 FF"},"timestamp":2}
-{"sessionId":"101f2d","runId":"loopback-shorted","hypothesisId":"C","location":"user-serial","message":"spi_miso_samples","data":{"echo_ok":1},"timestamp":3}
-{"sessionId":"101f2d","runId":"loopback-shorted","hypothesisId":"E","location":"user-serial","message":"hal_spi_ok","data":{"implied":true},"timestamp":4}
-{"sessionId":"101f2d","runId":"loopback-shorted","hypothesisId":"H","location":"user-serial","message":"cmd0_ff_harness_or_card","data":{"mode0_all_ff":true,"spi_ok":true,"cs_toggles":true},"timestamp":5}
