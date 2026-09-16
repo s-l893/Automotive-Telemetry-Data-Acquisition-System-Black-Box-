@@ -17,9 +17,11 @@
 #include "gps_driver.h"
 
 #define IDLE_SHUTDOWN_TIMEOUT_MS 300000
+#define SYNC_TIMEOUT_MS			 1500
+
 // VARIABLE DECLARATION
 static bool shutdown_complete = false;
-
+uint32_t sync_timer = 0;
 // FSM STRUCT DECLARED IN HEADER
 
 sys_state_t current_state = SYS_INIT; // SET INITIAL STATE
@@ -65,9 +67,15 @@ void SYS_FSM_TICK(void){
                 current_state = SYS_IDLE;
             }
         }
+
         SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
         GPS_Driver_Update();
         imu_read(); // READ IMU DATA
+        if (HAL_GetTick() - sync_timer > SYNC_TIMEOUT_MS) {
+        	SD_Logger_Sync();
+        	sync_timer = HAL_GetTick();
+        }
+
         break;
 
     case SYS_FAULT: // MIGHT WANT TO ADD SOMETHING HERE FOR CAN LATER ON

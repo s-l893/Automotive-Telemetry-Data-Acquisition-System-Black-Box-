@@ -262,7 +262,7 @@ DSTATUS USER_status (
   * @param  pdrv: Physical drive number (0..)
   * @param  *buff: Data buffer to store read data
   * @param  sector: Sector address (LBA)
-  * @param  count: Number of sectors to read (1..128)
+  * @param  count: Number of sectors to read (s..128)
   * @retval DRESULT: Operation result
   */
 DRESULT USER_read (
@@ -277,7 +277,7 @@ DRESULT USER_read (
 
 	for (int s = 0; s < count; s++){
 		uint32_t address = block_addressing ? (sector + s): ((sector + s) * 512);
-
+		SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_8, SPI_POLARITY_HIGH, SPI_PHASE_2EDGE); // toggle spi1 back to mode 3
 		SD_Select();
 		SD_Dummy();
 		SD_SendCommand(17, address, 0x01);
@@ -333,7 +333,7 @@ DRESULT USER_write (
 
 	for (int s = 0; s <count; s++){
 		uint32_t address = block_addressing ? (sector + s): ((sector + s) * 512);
-
+		SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_8, SPI_POLARITY_HIGH, SPI_PHASE_2EDGE); // toggle spi1 back to mode 3
 		SD_Select(); // CS LOW
 		SD_SendCommand(24, address, 0x01); // CMD24
 		if (SD_ReadR1() != 0x00){ // wait for R1 before sending data token
