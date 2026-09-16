@@ -77,7 +77,7 @@ void SD_Dummy(void)
 	HAL_SPI_TransmitReceive(&hspi1, &tx, &rx, 1, HAL_MAX_DELAY);
 }
 
-void SD_SPI_Reconfig(uint32_t baud, uint32_t cpol, uint32_t cpha)
+void SD_SPI_Reconfig(uint32_t baud, uint32_t cpol, uint32_t cpha) // changes spi1 bus modes (mode 0 or mode 3 in this case)
 {
 	hspi1.Init.BaudRatePrescaler = baud;
 	hspi1.Init.CLKPolarity = cpol;

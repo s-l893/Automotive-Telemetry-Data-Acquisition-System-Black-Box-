@@ -13,13 +13,15 @@
 #include "can_handler.h"
 #include <stdio.h>
 #include "imu.h"
+#include "gps_driver.h"
 
 FATFS fs;
 FIL log_file;
 
 /* Temporary session naming until GPS/RTC-based filenames are added */
 char filename[32];
-
+char header[128];
+char footer[128];
 volatile bool sd_mount = false;
 
 // timer for faster imu polls
@@ -45,18 +47,32 @@ bool SD_Logger_Init(void) {
 void start_new_session_file(void){
 	static int session_number = 0;
 	/* Session number is reset on MCU restart; replace with GPS/RTC naming later */
+
 	snprintf(filename, sizeof(filename), "log_%03d.csv", session_number);
 	session_number++;
-
 	FRESULT res = f_open(&log_file, filename, FA_CREATE_ALWAYS | FA_WRITE);
-
 	if (res != FR_OK){
 		fault_flags.sd_fault = true;
 	}
+	else if (res == FR_OK){
+		int header_len = snprintf(header, sizeof(header), "timestamp, id, dlc, d0,d1,d2,d3,d4,d5,d6,d7, lat, long, speed, accel_x, accel_y, accel_z\n");
+		UINT bytes_written;
+		FRESULT res1 = f_write(&log_file, header, header_len, &bytes_written);
+		if (res1 != FR_OK){
+			fault_flags.sd_fault = true;
+		}
+	}
+
 }
 
 void close_session_file(void){
 	/* Commit cached data before closing so removal/power-down does not lose it */
+	int footer_len = snprintf(footer, sizeof(footer), "END OF SESSION\n");
+	UINT bytes_written;
+	FRESULT res = f_write(&log_file, footer, footer_len, &bytes_written);
+	if (res != FR_OK){
+		fault_flags.sd_fault = true;
+	}
 	f_sync(&log_file);
 	f_close(&log_file);
 }
@@ -133,4 +149,13 @@ void flush_ring_buffers(void){
 		SD_Logger_DrainCAN();
 		drain_count++;
 	}
+}
+
+bool SD_Logger_Sync(void) {
+	FRESULT res = f_sync(&log_file);
+	if (res != FR_OK) {
+		fault_flags.sd_fault = true;
+		return false;
+	}
+	return true;
 }
