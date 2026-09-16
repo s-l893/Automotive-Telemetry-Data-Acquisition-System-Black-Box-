@@ -38,7 +38,7 @@
 #include "imu_selftest.h"
 #include "sd_spi_bus.h"
 #include "display.h"
-
+#include "touch_driver.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
