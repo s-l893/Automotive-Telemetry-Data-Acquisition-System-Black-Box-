@@ -32,7 +32,7 @@
  * - PB14 (LCD_CS) is in the .ioc but was never emitted into gpio.c.
  */
 
-static void LCD_BusPrepare(void)
+static void LCD_BusPrepare(void) // SPI1 back into mode 0
 {
 	GPIO_InitTypeDef GPIO_InitStruct = {0};
 
@@ -101,6 +101,7 @@ static void LCD_RST_High(void)
 /* SEND BYTE TO ILI9341 */
 void LCD_Send_Command(uint8_t cmd, uint8_t *params, int param_count)
 {
+	SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_8, SPI_POLARITY_LOW, SPI_PHASE_1EDGE); // toggle spi1 back to mode 0
 	LCD_CS_Low();
 	LCD_DC_Low();
 	HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
@@ -111,7 +112,7 @@ void LCD_Send_Command(uint8_t cmd, uint8_t *params, int param_count)
 	LCD_CS_High();
 }
 
-void LCD_Hardware_Reset(void)
+void LCD_Hardware_Reset(void) // ILI9341 power up sequence
 {
 	LCD_RST_Low();
 	HAL_Delay(15);
