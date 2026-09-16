@@ -40,7 +40,7 @@ void Touch_ToPixel(uint16_t raw_x, uint16_t raw_y, uint16_t *pixel_x, uint16_t *
 }
 
 void Touch_ReadRaw(uint16_t *raw_x, uint16_t *raw_y){
-	uint16_t tx;
-	uint16_t rx;
+	uint16_t tx = {control_byte, 0, 0};
+	uint16_t rx = {;
 	HAL_SPI_TransmitReceive(&hspi2, *tx, *rx, 1, HAL_MAX_DELAY);
 }
