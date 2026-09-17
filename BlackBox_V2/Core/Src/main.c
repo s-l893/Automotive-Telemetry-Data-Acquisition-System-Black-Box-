@@ -138,6 +138,7 @@ int main(void)
   LCD_FillRect(0, 0, 20, 20, 0x001F); /* red smoke test */
   /* LCD leaves SPI1 in Mode0; FatFs SD transfers expect Mode3 */
   SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_8, SPI_POLARITY_HIGH, SPI_PHASE_2EDGE);
+  Touch_Init();
 
 #if IMU_SELFTEST_ENABLE
   SD_Logger_Init();

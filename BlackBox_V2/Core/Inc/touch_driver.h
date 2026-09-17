@@ -8,6 +8,9 @@
 #ifndef TARGET_TOUCH_DRIVER_H_
 #define TARGET_TOUCH_DRIVER_H_
 
+#include <stdint.h>
+#include <stdbool.h>
+
 void Touch_ToPixel(uint16_t raw_x, uint16_t raw_y, uint16_t *pixel_x, uint16_t *pixel_y);
 void Touch_CS_High(void);
 void Touch_CS_Low(void);
