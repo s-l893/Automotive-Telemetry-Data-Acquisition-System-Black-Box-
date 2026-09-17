@@ -16,6 +16,7 @@ typedef struct {
 	bool imu_fault; // SOFT FAULT
 	bool imu_handshake_fault; // SOFT FAULT
 	bool can_fault; // HARD FAULT
+	bool touch_fault; // SOFT FAULT
 } fault_flags_t;
 
 extern fault_flags_t fault_flags;
