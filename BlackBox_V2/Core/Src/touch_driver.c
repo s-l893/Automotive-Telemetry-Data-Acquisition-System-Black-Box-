@@ -30,8 +30,18 @@ static uint16_t touch_start_raw_y;
 static uint16_t touch_latest_raw_x;
 static uint16_t touch_latest_raw_y;
 
-static int16_t touch_total_x;
-static int16_t touch_total_y;
+static int16_t dx;
+static int16_t dy;
+
+static uint16_t start_px_x;
+static uint16_t start_px_y;
+
+static uint16_t end_px_x;
+static uint16_t end_px_y;
+
+static float distance;
+
+touch_data_t touch;
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO){
 	if (GPIO == TOUCH_IRQ_Pin){
@@ -92,7 +102,7 @@ void Touch_Init(void){
 
 void Touch_Update(void){
 
-	if(!touch_in_progress){
+	if(!touch_in_progress){ // handles initial touch event from ISR
 		if (touch_event_flag){
 			touch_timer = HAL_GetTick();
 			touch_in_progress = true;
@@ -102,16 +112,41 @@ void Touch_Update(void){
 		}
 	}
 	else{
-
-		if(HAL_GPIO_ReadPin(TOUCH_IRQ_GPIO_PORT, TOUCH_IRQ_PIN) == GPIO_PIN_RESET){
+		if(HAL_GPIO_ReadPin(TOUCH_IRQ_GPIO_PORT, TOUCH_IRQ_Pin) == GPIO_PIN_RESET){ // continues updating the latest touch point
 			Touch_ReadRaw(&touch_latest_raw_x, &touch_latest_raw_y);
-
 		}
-		else{
-			Touch_ReadRaw(&touch_latest_raw_x, &touch_latest_raw_y);
+
+		else{ // case for the cycle right after touch is removed
+			Touch_ReadRaw(&touch_latest_raw_x, &touch_latest_raw_y); // final read for update
+			// convert to pixels from analog value
+			Touch_ToPixel(touch_start_raw_x, touch_start_raw_y, &start_px_x, &start_px_y);
+			Touch_ToPixel(touch_latest_raw_x, touch_latest_raw_y, &end_px_x, &end_px_y);
+			// compute total distance
+			dx = end_px_x - start_px_x;
+			dy = end_px_y - start_px_y;
+
+
+			distance = sqrtf(powf(dx, 2) + powf(dy, 2)); // computer actual distance
+
+			if (distance > 40){ // determine swipe or touch
+				touch.type = TOUCH_SWIPE;
+				// figure out direction of swipe
+				if (dx > 0){
+					touch.swipe_direction = SWIPE_RIGHT;
+				}
+				else if(dx < 0){
+					touch.swipe_direction = SWIPE_LEFT;
+				}
+
+			}
+			else{
+				touch.type = TOUCH_TAP;
+				touch.tap.pixel_x = start_px_x;
+				touch.tap.pixel_y = start_px_y;
+			}
+
+			touch.gesture_ready = true;
 			touch_in_progress = false;
-			touch_total_x = touch_latest_raw_x - touch_start_raw_x;
-			touch_total_y = touch_latest_raw_y - touch_start_raw_y;
 		}
 		if ((HAL_GetTick() - touch_timer) > 12000){
 			touch_in_progress = false;
