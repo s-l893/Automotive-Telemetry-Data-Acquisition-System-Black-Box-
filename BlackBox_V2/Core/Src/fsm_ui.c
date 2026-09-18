@@ -9,6 +9,7 @@
 #include "display.h"
 #include "can_decode.h"
 #include "imu.h"
+#include "gps_driver.h"
 #include "fault.h"
 #include "fsm_sys.h"
 #include "main.h"
@@ -34,7 +35,7 @@
 #define BOX_G_X      2
 #define BOX_G_Y      64
 #define BOX_G_W      118
-#define BOX_G_H      70
+#define BOX_G_H      92
 
 #define BOX_PEAK_X   2
 #define BOX_PEAK_Y   168
@@ -88,6 +89,7 @@ static char prev_atf[12];
 static char prev_ect[12];
 static char prev_lat[16];
 static char prev_long[16];
+static char prev_gps[16];
 static char prev_max_lat[16];
 static char prev_max_long[16];
 static char prev_fault[24];
@@ -145,22 +147,27 @@ static void format_gear(char *out, size_t n)
 	int gear = (int)vehicle_state.values[SIG_GEAR];
 	char mode = '?';
 
-	if (!vehicle_state.valid[SIG_SHIFTER]) {
+	if (!vehicle_state.valid[SIG_SHIFTER] && !vehicle_state.valid[SIG_GEAR]) {
 		snprintf(out, n, "--");
 		return;
 	}
 
-	switch (shifter) {
-	case 1: mode = 'P'; break;
-	case 2: mode = 'R'; break;
-	case 3: mode = 'N'; break;
-	case 4: mode = 'D'; break;
-	case 10: mode = 'S'; break;
-	default: mode = '?'; break;
+	if (vehicle_state.valid[SIG_SHIFTER]) {
+		switch (shifter) {
+		case 1: mode = 'P'; break;
+		case 2: mode = 'R'; break;
+		case 3: mode = 'N'; break;
+		case 4: mode = 'D'; break;
+		case 10: mode = 'S'; break;
+		default: mode = '?'; break;
+		}
 	}
 
-	if (mode == 'P' || mode == 'R' || mode == 'N' || !vehicle_state.valid[SIG_GEAR]) {
+	if (!vehicle_state.valid[SIG_GEAR] || mode == 'P' || mode == 'R' || mode == 'N') {
 		snprintf(out, n, "%c", mode);
+	} else if (gear == 10 || gear == 11) {
+		/* 10 = reverse engaged, 11 = in-gear transition */
+		snprintf(out, n, "%c-", mode);
 	} else {
 		snprintf(out, n, "%c%d", mode, gear);
 	}
@@ -199,7 +206,7 @@ static void draw_chrome(void)
 	LCD_DrawString(BOX_TEMP_X + BOX_TEMP_W / 2 + 6, BOX_TEMP_Y + 4, "ECT", LCD_COL_GRAY, LCD_COL_BLACK, 1);
 
 	LCD_DrawString(BOX_G_X + 4, BOX_G_Y + 4, "LAT G", LCD_COL_GRAY, LCD_COL_BLACK, 1);
-	LCD_DrawString(BOX_G_X + 4, BOX_G_Y + 38, "LONG G", LCD_COL_GRAY, LCD_COL_BLACK, 1);
+	LCD_DrawString(BOX_G_X + 4, BOX_G_Y + 36, "LONG G", LCD_COL_GRAY, LCD_COL_BLACK, 1);
 
 	LCD_DrawRect(BOX_PEAK_X, BOX_PEAK_Y, BOX_PEAK_W, BOX_PEAK_H, LCD_COL_WHITE);
 	LCD_DrawString(BOX_PEAK_X + 4, BOX_PEAK_Y + 4, "MAX LAT", LCD_COL_GRAY, LCD_COL_BLACK, 1);
@@ -214,7 +221,7 @@ static void draw_chrome(void)
 	chrome_drawn = true;
 	leaf_visible = false;
 	prev_gear[0] = prev_rpm[0] = prev_trtl[0] = '\0';
-	prev_atf[0] = prev_ect[0] = prev_lat[0] = prev_long[0] = '\0';
+	prev_atf[0] = prev_ect[0] = prev_lat[0] = prev_long[0] = prev_gps[0] = '\0';
 	prev_max_lat[0] = prev_max_long[0] = prev_fault[0] = prev_log[0] = '\0';
 	prev_gear_fg = prev_rpm_fg = 0xFFFF;
 	prev_flash_on = true;
@@ -304,10 +311,14 @@ static void draw_live_data(bool force)
 		last_g_ui_ms = HAL_GetTick();
 		snprintf(buf, sizeof(buf), "%+.2f", lat_g);
 		update_field(prev_lat, sizeof(prev_lat), buf,
-				BOX_G_X + 4, BOX_G_Y + 16, 110, 20, LCD_COL_WHITE, 2, force);
+				BOX_G_X + 4, BOX_G_Y + 14, 110, 18, LCD_COL_WHITE, 2, force);
 		snprintf(buf, sizeof(buf), "%+.2f", long_g);
 		update_field(prev_long, sizeof(prev_long), buf,
-				BOX_G_X + 4, BOX_G_Y + 50, 110, 20, LCD_COL_WHITE, 2, force);
+				BOX_G_X + 4, BOX_G_Y + 46, 110, 18, LCD_COL_WHITE, 2, force);
+		snprintf(buf, sizeof(buf), "%s", gps.locked ? "LOCKED" : "UNLOCKED");
+		update_field(prev_gps, sizeof(prev_gps), buf,
+				BOX_G_X + 4, BOX_G_Y + 72, 110, 16,
+				gps.locked ? LCD_COL_GREEN : LCD_COL_WHITE, 1, force);
 
 		snprintf(buf, sizeof(buf), "%.2f G", peak_lat_g);
 		update_field(prev_max_lat, sizeof(prev_max_lat), buf,
