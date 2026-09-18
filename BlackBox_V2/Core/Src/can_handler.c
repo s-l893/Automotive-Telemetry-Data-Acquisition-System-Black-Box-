@@ -24,15 +24,26 @@ volatile bool can_busoff_flag = false;
 
 
 void can_handler_init(void){
-	filter_config.FilterBank = 0;
-	filter_config.FilterMode = CAN_FILTERMODE_IDMASK;
-	filter_config.FilterScale = CAN_FILTERSCALE_32BIT;
-	filter_config.FilterIdHigh = 0x0000;
-	filter_config.FilterIdLow = 0x0000;
-	filter_config.FilterMaskIdHigh = 0x0000;
-	filter_config.FilterMaskIdLow = 0x0000;
-	filter_config.FilterFIFOAssignment = CAN_FILTER_FIFO0;
-	filter_config.FilterActivation = ENABLE;
+    CAN_FilterTypeDef filter_config = {0};
+    // HARDWARE BLOCKING CAN LIST FILTERS (NOT MASKING)
+ 	// BANK 0
+    filter_config.FilterBank           = 0;
+    filter_config.FilterMode           = CAN_FILTERMODE_IDLIST;
+    filter_config.FilterScale          = CAN_FILTERSCALE_16BIT;
+    filter_config.FilterIdHigh         = (0x158 << 5); // RPM
+    filter_config.FilterIdLow          = (0x17C << 5); // Throttle
+    filter_config.FilterMaskIdHigh     = (0x1A4 << 5); // Shifter/Gear
+    filter_config.FilterMaskIdLow      = (0x1A6 << 5); // VCM
+    filter_config.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+    filter_config.FilterActivation     = CAN_FILTER_ENABLE;
+    HAL_CAN_ConfigFilter(&hcan1, &filter_config);
+
+    // Bank 1: ECT/TransTemp ID ONLY ONE ID REPEATED 4x TO FILL BANK
+    filter_config.FilterBank       = 1;
+    filter_config.FilterIdHigh     = (0x324 << 5);
+    filter_config.FilterIdLow      = (0x324 << 5);
+    filter_config.FilterMaskIdHigh = (0x324 << 5);
+    filter_config.FilterMaskIdLow  = (0x324 << 5);
 
 	HAL_CAN_ConfigFilter(&hcan1, &filter_config);
 	HAL_CAN_Start(&hcan1);
@@ -74,4 +85,3 @@ void CAN_Handler_RecoverBusOff(void){
 	}
 
 }
-

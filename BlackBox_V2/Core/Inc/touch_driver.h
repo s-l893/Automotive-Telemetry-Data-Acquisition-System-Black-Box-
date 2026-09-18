@@ -15,7 +15,10 @@ void Touch_ToPixel(uint16_t raw_x, uint16_t raw_y, uint16_t *pixel_x, uint16_t *
 void Touch_CS_High(void);
 void Touch_CS_Low(void);
 void Touch_ReadRaw(uint16_t *raw_x, uint16_t *raw_y);
+bool Touch_IsPressed(void);
+void Touch_ReadPressure(uint16_t *z1_out, uint16_t *z2_out);
 void Touch_Init(void);
+void Touch_Update(void);
 
 typedef enum {
     TOUCH_NONE,

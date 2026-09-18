@@ -8,18 +8,19 @@
 #include "touch_driver.h"
 #include "main.h"
 #include "fault.h"
+#include "spi.h"
 #include <math.h>
-
+#include <string.h>
 #include <stdbool.h>
 
-#define rawx1 0
-#define rawy1 4095
-#define pixelx1 0
-#define pixely1 239
-#define rawx2 4095
-#define rawy2 0
-#define pixelx2 319
-#define pixely2 0
+#define raw_x1 0
+#define raw_y1 4095
+#define pixel_x1 0
+#define pixel_y1 239
+#define raw_x2 4095
+#define raw_y2 0
+#define pixel_x2 319
+#define pixel_y2 0
 
 static volatile bool touch_event_flag = false;
 static volatile bool touch_in_progress = false;
@@ -62,48 +63,86 @@ void Touch_ToPixel(uint16_t raw_x, uint16_t raw_y, uint16_t *pixel_x, uint16_t *
 }
 
 void Touch_CS_High(void){
-	HAL_GPIO_WritePin(CS_SPI2_Port, CS_SPI2_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(CS_SPI2_GPIO_Port, CS_SPI2_Pin, GPIO_PIN_SET);
 }
 
 void Touch_CS_Low(void){
-	HAL_GPIO_WritePin(CS_SPI2_Port, CS_SPI2_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(CS_SPI2_GPIO_Port, CS_SPI2_Pin, GPIO_PIN_RESET);
+}
+
+/* 12-bit result from XPT2046/ADS7843 8-bit SPI framing.
+ * Low 2 bits of cmd = PD1:PD0 = 11 keep ADC on between conversions. */
+static uint16_t touch_spi_cmd(uint8_t cmd)
+{
+	uint8_t tx[3] = {cmd, 0x00, 0x00};
+	uint8_t rx[3] = {0};
+	HAL_SPI_TransmitReceive(&hspi2, tx, rx, 3, HAL_MAX_DELAY);
+	return (uint16_t)((((uint16_t)rx[1] << 8) | rx[2]) >> 3);
 }
 
 void Touch_ReadRaw(uint16_t *raw_x, uint16_t *raw_y){
-	uint8_t control_byte_x = 0xD0;
-	uint8_t control_byte_y = 0x90;
+	Touch_CS_Low();
+	HAL_Delay(1);
+	(void)touch_spi_cmd(0xD3); /* X, ADC on */
+	*raw_x = touch_spi_cmd(0xD3);
+	(void)touch_spi_cmd(0x93); /* Y */
+	*raw_y = touch_spi_cmd(0x93);
+	(void)touch_spi_cmd(0xD0); /* power down */
+	Touch_CS_High();
+}
+
+bool Touch_IsPressed(void)
+{
+	uint16_t z1, z2;
+	uint32_t z;
 
 	Touch_CS_Low();
-
-	uint8_t tx[3] = {control_byte_x, 0, 0};
-	uint8_t rx[3];
-	HAL_SPI_TransmitReceive(&hspi2, tx, rx, 3, HAL_MAX_DELAY);
-	uint16_t raw_value_x = (rx[1] << 8) | (rx[2] >> 4);
+	HAL_Delay(1);
+	z1 = touch_spi_cmd(0xB3);
+	z2 = touch_spi_cmd(0xC3);
+	(void)touch_spi_cmd(0xD0);
 	Touch_CS_High();
 
+	if ((z1 == 0U && z2 == 0U) || (z1 >= 4090U && z2 >= 4090U)) {
+		return false;
+	}
+
+	z = (uint32_t)z1 + 4095U - (uint32_t)z2;
+	return z > 400U;
+}
+
+void Touch_ReadPressure(uint16_t *z1_out, uint16_t *z2_out)
+{
 	Touch_CS_Low();
-	tx[0] = control_byte_y;
-	HAL_SPI_TransmitReceive(&hspi2, tx, rx, 3, HAL_MAX_DELAY);
-	uint16_t raw_value_y = (rx[1] << 8) | (rx[2] >> 4);
+	HAL_Delay(1);
+	*z1_out = touch_spi_cmd(0xB3);
+	*z2_out = touch_spi_cmd(0xC3);
+	(void)touch_spi_cmd(0xD0);
 	Touch_CS_High();
-
-	*raw_x = raw_value_x;
-	*raw_y = raw_value_y;
-
 }
 
 void Touch_Init(void){
+	/* Ensure CS is a real GPIO (PB3 is JTDO after reset until reconfigured) */
+	GPIO_InitTypeDef GPIO_InitStruct = {0};
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+	HAL_GPIO_WritePin(CS_SPI2_GPIO_Port, CS_SPI2_Pin, GPIO_PIN_SET);
+	GPIO_InitStruct.Pin = CS_SPI2_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(CS_SPI2_GPIO_Port, &GPIO_InitStruct);
+
 	Touch_CS_High();
 	touch_event_flag = false;
-
+	memset(&touch, 0, sizeof(touch));
 }
 
 
 
 void Touch_Update(void){
 
-	if(!touch_in_progress){ // handles initial touch event from ISR
-		if (touch_event_flag){
+	if(!touch_in_progress){ // Z-pressure only (PC13 IRQ unreliable on Nucleo)
+		if (Touch_IsPressed()){
 			touch_timer = HAL_GetTick();
 			touch_in_progress = true;
 
@@ -112,7 +151,7 @@ void Touch_Update(void){
 		}
 	}
 	else{
-		if(HAL_GPIO_ReadPin(TOUCH_IRQ_GPIO_PORT, TOUCH_IRQ_Pin) == GPIO_PIN_RESET){ // continues updating the latest touch point
+		if(Touch_IsPressed()){ // continues updating the latest touch point
 			Touch_ReadRaw(&touch_latest_raw_x, &touch_latest_raw_y);
 		}
 
