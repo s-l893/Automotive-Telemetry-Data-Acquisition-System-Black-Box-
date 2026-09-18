@@ -15,6 +15,9 @@
 #include "main.h"
 #include "imu.h"
 #include "gps_driver.h"
+#include "touch_driver.h"
+#include "fsm_ui.h"
+#include "can_ring_buffer.h"
 
 #define IDLE_SHUTDOWN_TIMEOUT_MS 300000
 #define SYNC_TIMEOUT_MS			 1500
@@ -31,22 +34,25 @@ void SYS_FSM_TICK(void){
 
     switch (current_state){
     case SYS_INIT:
-        if (sd_mount && peripherals_init){
+        if (!sd_mount){
+            fault_flags.sd_fault = true;
+        }
+        /* Always enter IDLE so UI/CAN listen work even if SD is missing */
+        if (peripherals_init || !sd_mount){
             current_state = SYS_IDLE;
         }
-        else if (!sd_mount){
-            fault_flags.sd_fault = true;
-            current_state = SYS_FAULT;
-        }
-
-    break;
+        break;
     case SYS_IDLE:
         imu_read();
         GPS_Driver_Update();
         Touch_Update();
+        UI_FSM_Tick();
         if (can_frame_received_flag){
             current_state = SYS_LOGGING;
-            start_new_session_file();
+            UI_ResetSessionPeaks();
+            if (sd_mount) {
+                start_new_session_file();
+            }
             last_can_frame = HAL_GetTick();
         }
         else{
@@ -64,16 +70,26 @@ void SYS_FSM_TICK(void){
         else{
             can_timer = HAL_GetTick(); // NON BLOCKING ARCHITECTURE
             if ((can_timer - last_can_frame) >= 2500){ // 2.5S SILENCE TIMEOUT FEATURE
-                close_session_file();
+                if (sd_mount) {
+                    close_session_file();
+                }
                 current_state = SYS_IDLE;
             }
         }
 
-        SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
+        if (sd_mount) {
+            SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
+        } else {
+            /* Still empty the RB so it cannot fill while display-only */
+            can_frame_t drop;
+            while (CANRingBuffer_Pop(&can_rb, &drop)) {
+            }
+        }
         GPS_Driver_Update();
         imu_read(); // READ IMU DATA
         Touch_Update();
-        if (HAL_GetTick() - sync_timer > SYNC_TIMEOUT_MS) {
+        UI_FSM_Tick();
+        if (sd_mount && (HAL_GetTick() - sync_timer > SYNC_TIMEOUT_MS)) {
         	SD_Logger_Sync();
         	sync_timer = HAL_GetTick();
         }
@@ -81,6 +97,8 @@ void SYS_FSM_TICK(void){
         break;
 
     case SYS_FAULT: // MIGHT WANT TO ADD SOMETHING HERE FOR CAN LATER ON
+        UI_FSM_Tick();
+        imu_read();
         sd_recovery(); // ATTEMPT TO RETRY SD MOUNT
         if (sd_mount){
             current_state = SYS_IDLE;

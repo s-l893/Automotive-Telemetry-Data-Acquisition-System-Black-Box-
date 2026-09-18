@@ -38,7 +38,7 @@
 #include "sd_spi_bus.h"
 #include "display.h"
 #include "touch_driver.h"
-#include "touch_cal_test.h"
+#include "fsm_ui.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,7 +48,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* TEMP touch cal: TOUCH_CAL_ENABLE in touch_cal_test.h (USART3 PuTTY). */
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -116,39 +115,19 @@ int main(void)
   /* Re-apply after MX_GPIO_Init — Cube regen often forces CS idle low */
   SD_CS_ForceIdleHigh();
 
-  /* MX_USART2_UART_Init(); — do not enable while LCD uses PA2/PA3 */
-  /* Mount SD before long IMU calibrate — isolates SPI bring-up */
   SD_Logger_Init();
   peripherals_init &= sd_mount;
 
-  imu_init(); // IMU INIT
+  imu_init();
   GPS_Driver_Init();
+  can_handler_init();
 
-  can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
-
-  /* Display after SD so LCD_BusPrepare() can restore SPI1 Mode0 */
+  /* Display after SD so SPI1 Mode0 can be restored */
   LCD_Init();
-
   Touch_Init();
-#if TOUCH_CAL_ENABLE
-  /* TEMP: LCD prompts + TOUCHCAL.TXT on SD. Set TOUCH_CAL_ENABLE 0 when done. */
-  Touch_Cal_Run();
-#else
-  LCD_FillScreen(0x07E0);
-  LCD_FillRect(0, 0, 20, 20, 0x001F); /* red smoke test */
-#endif
+  UI_Init();
 
-  /* Session files are opened by SYS_FSM on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
-
-  CAN_TxHeaderTypeDef tx_header;
-  uint8_t tx_data[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-  uint32_t tx_mailbox;
-  tx_header.StdId = 0x123;
-  tx_header.IDE = CAN_ID_STD;
-  tx_header.RTR = CAN_RTR_DATA;
-  tx_header.DLC = 8;
-  tx_header.TransmitGlobalTime = DISABLE;
-  HAL_CAN_AddTxMessage(&hcan1, &tx_header, tx_data, &tx_mailbox);
+  /* Session files open on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
 
   /* USER CODE END 2 */
 
