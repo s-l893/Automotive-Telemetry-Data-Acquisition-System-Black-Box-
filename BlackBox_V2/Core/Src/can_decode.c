@@ -16,8 +16,8 @@ static const can_signal_def_t can_signal_table[] = {
     // signal_id        name          can_id  type            b0 b1  scale           offset   nibble       bit
     { SIG_RPM,        "RPM",        0x158, DECODE_RAW16,   2, 3, 0.0f,            0.0f,   NIBBLE_HIGH, 0 },
     { SIG_THROTTLE,   "Throttle",   0x17C, DECODE_LINEAR,  0, 0, 100.0f / 255.0f, 0.0f,   NIBBLE_HIGH, 0 },
-    { SIG_SHIFTER,    "Shifter",    0x1A4, DECODE_NIBBLE,  0, 0, 0.0f,            0.0f,   NIBBLE_HIGH, 0 },
-    { SIG_GEAR,       "Gear",       0x1A4, DECODE_NIBBLE,  1, 0, 0.0f,            0.0f,   NIBBLE_LOW,  0 },
+    { SIG_SHIFTER,    "Shifter",    0x1A3, DECODE_LINEAR,  0, 0, 1.0f,            0.0f,   NIBBLE_HIGH, 0 },
+    { SIG_GEAR,       "Gear",       0x1A3, DECODE_NIBBLE,  4, 0, 0.0f,            0.0f,   NIBBLE_LOW,  0 },
     { SIG_VCM,        "VCM",        0x1A6, DECODE_BIT,     1, 0, 0.0f,            0.0f,   NIBBLE_HIGH, 0 },
     { SIG_ECT,        "ECT",        0x324, DECODE_LINEAR,  0, 0, 1.0f,            -40.0f, NIBBLE_HIGH, 0 },
     { SIG_TRANS_TEMP, "TransTemp",  0x324, DECODE_LINEAR,  4, 0, 1.0f,            -40.0f, NIBBLE_HIGH, 0 },

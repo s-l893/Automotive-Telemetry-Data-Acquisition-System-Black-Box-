@@ -26,10 +26,6 @@ typedef struct {
 
 extern imu_frame imu;
 extern imu_calibration imu_offset;
-extern uint8_t imu_who_am_i;
-extern HAL_StatusTypeDef imu_who_read_status;
-extern HAL_StatusTypeDef imu_wake_write_status;
-extern HAL_StatusTypeDef imu_accel_read_status;
 
 void imu_init(void);
 void imu_read(void);
