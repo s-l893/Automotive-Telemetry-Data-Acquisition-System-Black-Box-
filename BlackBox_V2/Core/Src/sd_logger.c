@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include "imu.h"
 #include "gps_driver.h"
+#include "can_decode.h"
 
 FATFS fs;
 FIL log_file;
@@ -102,31 +103,37 @@ void SD_Logger_DrainCAN(void){
 	UINT bytes_written = 0; // total bytes written
 	char csv_buffer[2048];  // batch several CAN frames into one FatFs write
 
-	/* Limit work per FSM tick so logging does not block the rest of the system */
+	// Limit work per FSM tick so logging does not block the rest of the system
 	for (int i = 0; i < 16; i++){
 		bool got_frame = CANRingBuffer_Pop(&can_rb, &frame);
 		if(!got_frame){
 			break;
 		}
 
-		uint8_t padded_data[8];
-		for (int j = 0; j < 8; j++){
-			if (j >= frame.dlc){
-				padded_data[j] = 0;
-			}
-			else if (j < frame.dlc){
-				padded_data[j] = frame.data[j];
-			}
+		// decode the popped frames
+		CAN_Decode_ProcessFrame(frame.id, frame.data, frame.dlc);
+
+	// legacy architecture no longer needed, csv will log straight readable data instead of codes
+		// uint8_t padded_data[8];
+
+		// Write csv line on the frame that carries rpm or throttle
+		// allows for lowest latency digital tachometer updates
+
+		if (frame.id == 0x158 || frame.id == 0x17C){
+			int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset,
+				"%lu,0x%03lX,%.1f,%.1f,%f,%f,%f,%d,%d,%d\n",
+				frame.timestamp, frame.id,
+				vehicle_state.values[SIG_RPM], vehicle_state.values[SIG_THROTTLE], gps.latitude, gps.longitude, gps.speed, imu.accel_x, imu.accel_y, imu.accel_z);
+			offset += written;
+			last_row_write_time = HAL_GetTick();
 		}
-		int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%d,%d,%d\n", frame.timestamp, frame.id, frame.dlc, padded_data[0], padded_data[1], padded_data[2], padded_data[3],
-		        padded_data[4], padded_data[5], padded_data[6], padded_data[7], gps.latitude, gps.longitude, gps.speed, imu.accel_x, imu.accel_y, imu.accel_z);
-		offset += written;
-		last_row_write_time = HAL_GetTick();
 	}
 
 	if (offset == 0){ // TIMEOUT FEATURE FOR EMPTY CAN ROWS WITH IMU DATA
 		if ((HAL_GetTick() - last_row_write_time) >= 200){
-			int imu_written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset, "%lu,0x%03lX,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%d,%d,%d\n", HAL_GetTick(), 0xFFFFUL, 0, 0, 0, 0, 0, 0, 0, 0, 0, gps.latitude, gps.longitude, gps.speed, imu.accel_x, imu.accel_y, imu.accel_z);
+			int imu_written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset,
+				"%lu,0x%03lX,%.1f,%.1f,%f,%f,%f,%d,%d,%d\n",
+				HAL_GetTick(), 0xFFFFUL, vehicle_state.values[SIG_RPM], vehicle_state.values[SIG_THROTTLE], gps.latitude, gps.longitude, gps.speed,	imu.accel_x, imu.accel_y, imu.accel_z);
 			offset += imu_written;
 			last_row_write_time = HAL_GetTick();
 		}

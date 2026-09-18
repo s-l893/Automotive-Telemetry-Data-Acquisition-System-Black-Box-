@@ -35,10 +35,10 @@
 #include "fsm_sys.h"
 #include "fault.h"
 #include "gps_driver.h"
-#include "imu_selftest.h"
 #include "sd_spi_bus.h"
 #include "display.h"
 #include "touch_driver.h"
+#include "touch_cal_test.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,7 +48,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* IMU self-test enable lives in imu_selftest.h (IMU_SELFTEST_ENABLE). */
+/* TEMP touch cal: TOUCH_CAL_ENABLE in touch_cal_test.h (USART3 PuTTY). */
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -116,35 +116,27 @@ int main(void)
   /* Re-apply after MX_GPIO_Init — Cube regen often forces CS idle low */
   SD_CS_ForceIdleHigh();
 
-#if IMU_SELFTEST_ENABLE
-  /* TEMP: USART2 driver unit-test (conflicts with LCD on PA2/PA3). */
-  MX_USART2_UART_Init();
-  IMU_SelfTest_Run(); /* calls real imu_init() / imu_calibrate() */
-#else
   /* MX_USART2_UART_Init(); — do not enable while LCD uses PA2/PA3 */
   /* Mount SD before long IMU calibrate — isolates SPI bring-up */
   SD_Logger_Init();
   peripherals_init &= sd_mount;
 
   imu_init(); // IMU INIT
-#endif
   GPS_Driver_Init();
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
 
   /* Display after SD so LCD_BusPrepare() can restore SPI1 Mode0 */
   LCD_Init();
+
+  Touch_Init();
+#if TOUCH_CAL_ENABLE
+  /* TEMP: LCD prompts + TOUCHCAL.TXT on SD. Set TOUCH_CAL_ENABLE 0 when done. */
+  Touch_Cal_Run();
+#else
   LCD_FillScreen(0x07E0);
   LCD_FillRect(0, 0, 20, 20, 0x001F); /* red smoke test */
-  /* LCD leaves SPI1 in Mode0; FatFs SD transfers expect Mode3 */
-  SD_SPI_Reconfig(SPI_BAUDRATEPRESCALER_8, SPI_POLARITY_HIGH, SPI_PHASE_2EDGE);
-  Touch_Init();
-
-#if IMU_SELFTEST_ENABLE
-  SD_Logger_Init();
-  peripherals_init &= sd_mount;
 #endif
-
 
   /* Session files are opened by SYS_FSM on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
 
@@ -166,9 +158,6 @@ int main(void)
   {
 	  SYS_FSM_TICK();
 	  CAN_Handler_RecoverBusOff();
-#if IMU_SELFTEST_ENABLE
-	  IMU_SelfTest_Tick(); /* samples via real imu_read() */
-#endif
 
 	  HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */

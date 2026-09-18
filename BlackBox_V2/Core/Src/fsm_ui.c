@@ -12,4 +12,3 @@ typedef enum{
 	UI_TACHOMETER,
 	UI_MENU,
 } ui_state_t;
-

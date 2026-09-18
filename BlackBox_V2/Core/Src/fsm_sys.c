@@ -43,6 +43,7 @@ void SYS_FSM_TICK(void){
     case SYS_IDLE:
         imu_read();
         GPS_Driver_Update();
+        Touch_Update();
         if (can_frame_received_flag){
             current_state = SYS_LOGGING;
             start_new_session_file();
@@ -71,6 +72,7 @@ void SYS_FSM_TICK(void){
         SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
         GPS_Driver_Update();
         imu_read(); // READ IMU DATA
+        Touch_Update();
         if (HAL_GetTick() - sync_timer > SYNC_TIMEOUT_MS) {
         	SD_Logger_Sync();
         	sync_timer = HAL_GetTick();
