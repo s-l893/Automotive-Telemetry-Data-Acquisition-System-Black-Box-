@@ -46,7 +46,7 @@ void MX_UART4_Init(void);
 void MX_USART3_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-/* TEMP: Nucleo ST-Link VCP (PA2/PA3) @ 115200 for PuTTY IMU test */
+/* Optional: Nucleo ST-Link VCP on PA2/PA3 — conflicts with LCD DC/RESET */
 void MX_USART2_UART_Init(void);
 void DBG_Print(const char *s);
 /* USER CODE END Prototypes */
