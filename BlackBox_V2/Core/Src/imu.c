@@ -40,13 +40,13 @@ imu_frame imu;
 
 imu_calibration imu_offset;
 
-uint8_t imu_who_am_i = 0;
+static uint8_t imu_who_am_i = 0;
 
-HAL_StatusTypeDef imu_who_read_status = HAL_ERROR;
+static HAL_StatusTypeDef imu_who_read_status = HAL_ERROR;
 
-HAL_StatusTypeDef imu_wake_write_status = HAL_ERROR;
+static HAL_StatusTypeDef imu_wake_write_status = HAL_ERROR;
 
-HAL_StatusTypeDef imu_accel_read_status = HAL_ERROR;
+static HAL_StatusTypeDef imu_accel_read_status = HAL_ERROR;
 
 
 
