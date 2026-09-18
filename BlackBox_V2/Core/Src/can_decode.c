@@ -16,8 +16,9 @@ static const can_signal_def_t can_signal_table[] = {
     // signal_id        name          can_id  type            b0 b1  scale           offset   nibble       bit
     { SIG_RPM,        "RPM",        0x158, DECODE_RAW16,   2, 3, 0.0f,            0.0f,   NIBBLE_HIGH, 0 },
     { SIG_THROTTLE,   "Throttle",   0x17C, DECODE_LINEAR,  0, 0, 100.0f / 255.0f, 0.0f,   NIBBLE_HIGH, 0 },
-    { SIG_SHIFTER,    "Shifter",    0x1A3, DECODE_LINEAR,  0, 0, 1.0f,            0.0f,   NIBBLE_HIGH, 0 },
-    { SIG_GEAR,       "Gear",       0x1A3, DECODE_NIBBLE,  4, 0, 0.0f,            0.0f,   NIBBLE_LOW,  0 },
+    /* 0x1A3: byte0 = gear (1-6, 10=rev, 11=shift); byte4[3:0] = PRNDS (1P 2R 3N 4D 10S) */
+    { SIG_GEAR,       "Gear",       0x1A3, DECODE_LINEAR,  0, 0, 1.0f,            0.0f,   NIBBLE_HIGH, 0 },
+    { SIG_SHIFTER,    "Shifter",    0x1A3, DECODE_NIBBLE,  4, 0, 0.0f,            0.0f,   NIBBLE_LOW,  0 },
     { SIG_VCM,        "VCM",        0x1A6, DECODE_BIT,     1, 0, 0.0f,            0.0f,   NIBBLE_HIGH, 0 },
     { SIG_ECT,        "ECT",        0x324, DECODE_LINEAR,  0, 0, 1.0f,            -40.0f, NIBBLE_HIGH, 0 },
     { SIG_TRANS_TEMP, "TransTemp",  0x324, DECODE_LINEAR,  4, 0, 1.0f,            -40.0f, NIBBLE_HIGH, 0 },
@@ -56,7 +57,7 @@ void CAN_Decode_ProcessFrame(uint32_t can_id, const uint8_t *data, uint8_t dlc)
     for (uint32_t i = 0; i < CAN_SIGNAL_TABLE_COUNT; i++) {
         const can_signal_def_t *def = &can_signal_table[i];
         if (def->can_id != can_id) {
-            continue; /* not a break - one ID can back multiple signals (0x1A4) */
+            continue; /* not a break - one ID can back multiple signals (0x1A3) */
         }
 
         float value;
