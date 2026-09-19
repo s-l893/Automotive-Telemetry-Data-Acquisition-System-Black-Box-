@@ -31,7 +31,7 @@ static void can_apply_filters(void)
 	filter_config.FilterScale          = CAN_FILTERSCALE_16BIT;
 	filter_config.FilterIdHigh         = (0x158 << 5); /* RPM */
 	filter_config.FilterIdLow          = (0x17C << 5); /* Throttle */
-	filter_config.FilterMaskIdHigh     = (0x1A3 << 5); /* Shifter/Gear */
+	filter_config.FilterMaskIdHigh     = (0x188 << 5); /* Gear / shifter */
 	filter_config.FilterMaskIdLow      = (0x1A6 << 5); /* VCM */
 	filter_config.FilterFIFOAssignment = CAN_FILTER_FIFO0;
 	filter_config.FilterActivation     = ENABLE;

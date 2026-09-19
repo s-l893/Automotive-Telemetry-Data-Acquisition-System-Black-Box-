@@ -143,8 +143,9 @@ static float fabsf_local(float v)
 
 static void format_gear(char *out, size_t n)
 {
-	int shifter = (int)vehicle_state.values[SIG_SHIFTER];
-	int gear = (int)vehicle_state.values[SIG_GEAR];
+	/* Shifter: byte3 & 0x0F. Gear: byte4 & 0x1F (active ratio when rolling/manual). */
+	int shifter = (int)vehicle_state.values[SIG_SHIFTER] & 0x0F;
+	int gear = (int)vehicle_state.values[SIG_GEAR] & 0x1F;
 	char mode = '?';
 
 	if (!vehicle_state.valid[SIG_SHIFTER] && !vehicle_state.valid[SIG_GEAR]) {
@@ -154,22 +155,24 @@ static void format_gear(char *out, size_t n)
 
 	if (vehicle_state.valid[SIG_SHIFTER]) {
 		switch (shifter) {
-		case 1: mode = 'P'; break;
-		case 2: mode = 'R'; break;
-		case 3: mode = 'N'; break;
-		case 4: mode = 'D'; break;
-		case 10: mode = 'S'; break;
+		case 0x00: mode = 'S'; break;
+		case 0x01: mode = 'P'; break;
+		case 0x02: mode = 'R'; break;
+		case 0x04: mode = 'N'; break;
+		case 0x08: mode = 'D'; break;
 		default: mode = '?'; break;
 		}
 	}
 
 	if (!vehicle_state.valid[SIG_GEAR] || mode == 'P' || mode == 'R' || mode == 'N') {
 		snprintf(out, n, "%c", mode);
+	} else if (gear >= 1 && gear <= 6) {
+		snprintf(out, n, "%c%d", mode, gear);
 	} else if (gear == 10 || gear == 11) {
-		/* 10 = reverse engaged, 11 = in-gear transition */
 		snprintf(out, n, "%c-", mode);
 	} else {
-		snprintf(out, n, "%c%d", mode, gear);
+		/* 0 at rest / solenoid handoff junk — letter only */
+		snprintf(out, n, "%c", mode);
 	}
 }
 
