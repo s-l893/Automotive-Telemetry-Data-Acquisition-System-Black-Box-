@@ -143,9 +143,9 @@ static float fabsf_local(float v)
 
 static void format_gear(char *out, size_t n)
 {
-	/* Shifter: byte3 & 0x0F. Gear: byte4 & 0x1F (active ratio when rolling/manual). */
+	/* Shifter: 0x188 byte3. Gear: 0x1A4 byte1 low nibble (1-6). */
 	int shifter = (int)vehicle_state.values[SIG_SHIFTER] & 0x0F;
-	int gear = (int)vehicle_state.values[SIG_GEAR] & 0x1F;
+	int gear = (int)vehicle_state.values[SIG_GEAR];
 	char mode = '?';
 
 	if (!vehicle_state.valid[SIG_SHIFTER] && !vehicle_state.valid[SIG_GEAR]) {
@@ -171,7 +171,7 @@ static void format_gear(char *out, size_t n)
 	} else if (gear == 10 || gear == 11) {
 		snprintf(out, n, "%c-", mode);
 	} else {
-		/* 0 at rest / solenoid handoff junk — letter only */
+		/* 0 at rest, 7 during N handoff, etc. */
 		snprintf(out, n, "%c", mode);
 	}
 }
@@ -362,7 +362,10 @@ static void draw_live_data(bool force)
 	prev_flash_on = flash_on;
 
 	{
-		bool vcm_on = vehicle_state.valid[SIG_VCM] && (vehicle_state.values[SIG_VCM] >= 0.5f);
+		/* Bit0 = ECO/VCM per map; bit1 included in case packing differs */
+		uint8_t vcm_raw = vehicle_state.valid[SIG_VCM]
+				? (uint8_t)(vehicle_state.values[SIG_VCM] + 0.5f) : 0U;
+		bool vcm_on = vehicle_state.valid[SIG_VCM] && ((vcm_raw & 0x03U) != 0U);
 		if (force || vcm_on != leaf_visible) {
 			leaf_visible = vcm_on;
 			LCD_FillRect(BOX_LEAF_X + 8, BOX_LEAF_Y + 22, 56, 40, LCD_COL_BLACK);

@@ -112,7 +112,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
-  /* Re-apply after MX_GPIO_Init — Cube regen often forces CS idle low */
+
   SD_CS_ForceIdleHigh();
 
   SD_Logger_Init();
@@ -122,12 +122,12 @@ int main(void)
   GPS_Driver_Init();
   can_handler_init();
 
-  /* Display after SD so SPI1 Mode0 can be restored */
+  // Display init comes after SD so SPI1 Mode0 can be restored
   LCD_Init();
   Touch_Init();
   UI_Init();
 
-  /* Session files open on first CAN frame (SYS_IDLE -> SYS_LOGGING) */
+  // Session files open on first CAN frame (SYS_IDLE -> SYS_LOGGING)
 
   /* USER CODE END 2 */
 

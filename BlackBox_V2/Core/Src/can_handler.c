@@ -39,16 +39,15 @@ static void can_apply_filters(void)
 	HAL_CAN_ConfigFilter(&hcan1, &filter_config);
 
 	filter_config.FilterBank       = 1;
-	filter_config.FilterIdHigh     = (0x324 << 5);
-	filter_config.FilterIdLow      = (0x324 << 5);
+	filter_config.FilterIdHigh     = (0x324 << 5); /* ECT / ATF */
+	filter_config.FilterIdLow      = (0x1A4 << 5); /* Engaged gear */
 	filter_config.FilterMaskIdHigh = (0x324 << 5);
-	filter_config.FilterMaskIdLow  = (0x324 << 5);
+	filter_config.FilterMaskIdLow  = (0x1A4 << 5);
 	HAL_CAN_ConfigFilter(&hcan1, &filter_config);
 }
 
 void can_handler_init(void)
 {
-	/* Listen-only is set in MX_CAN1_Init (CAN_MODE_SILENT). */
 	can_apply_filters();
 
 	HAL_CAN_Start(&hcan1);
@@ -56,19 +55,20 @@ void can_handler_init(void)
 	HAL_CAN_ActivateNotification(&hcan1, CAN_IT_ERROR | CAN_IT_BUSOFF);
 	CANRingBuffer_Init(&can_rb, 32, can_storage);
 }
-
+// CAN RX intterupt handler
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
 	if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, (uint8_t *)rx_data) == HAL_OK) {
 		can_frame_t frame;
+		// assign data obtained from CAN HAL call to frame struct
 		frame.id = rx_header.StdId;
 		frame.dlc = rx_header.DLC;
 		memcpy(frame.data, (const void *)rx_data, sizeof(rx_data));
+		// Timestamps recorded for can bus silence detection
 		frame.timestamp = HAL_GetTick();
 		last_can_frame = HAL_GetTick();
 		can_frame_received_flag = true;
-		CAN_Decode_ProcessFrame(frame.id, frame.data, frame.dlc);
-		CANRingBuffer_Push(&can_rb, frame);
+		CANRingBuffer_Push(&can_rb, frame); // push frame struct containing data to rb
 	}
 }
 
@@ -92,8 +92,7 @@ void CAN_Handler_RecoverBusOff(void)
 	HAL_CAN_Init(&hcan1);
 	can_apply_filters();
 	HAL_CAN_Start(&hcan1);
-	HAL_CAN_ActivateNotification(&hcan1,
-			CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_ERROR | CAN_IT_BUSOFF);
+	HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_ERROR | CAN_IT_BUSOFF);
 	fault_flags.can_fault = false;
 	can_busoff_flag = false;
 }

@@ -15,11 +15,11 @@
 #include "imu.h"
 #include "gps_driver.h"
 #include "can_decode.h"
+#include "rtc.h"
 
 FATFS fs;
 FIL log_file;
 
-/* Temporary session naming until GPS/RTC-based filenames are added */
 char filename[32];
 char header[128];
 char footer[128];
@@ -29,10 +29,10 @@ volatile bool sd_mount = false;
 static uint32_t last_row_write_time = 0;
 
 bool SD_Logger_Init(void) {
-	/* Immediate mount (opt = 1) also runs USER_initialize through FatFs */
+	// initial sd card mount
 	FRESULT res = f_mount(&fs, USERPath, 1);
 	if (res != FR_OK) {
-		/* One retry after a short settle — helps after a soft-reset wedge */
+		// additional mount attempt in case of a slow soft reset
 		HAL_Delay(100);
 		f_mount(NULL, USERPath, 0);
 		res = f_mount(&fs, USERPath, 1);
@@ -47,16 +47,28 @@ bool SD_Logger_Init(void) {
 
 void start_new_session_file(void){
 	static int session_number = 0;
-	/* Session number is reset on MCU restart; replace with GPS/RTC naming later */
+	RTC_TimeTypeDef sTime = {0};
+	RTC_DateTypeDef sDate = {0};
+// FILENAME NAMING LOGIC, BASED ON RTC SYNC FROM GPS, OTHERWISE FALLS BACK TO LOG.000.CSV.
+	if (gps.rtc_synced){
+		HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+		HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN); // comes after gettime
 
-	snprintf(filename, sizeof(filename), "log_%03d.csv", session_number);
-	session_number++;
+		snprintf(filename, sizeof(filename), "%02u%02u%02u%02u.CSV",
+			 (unsigned)sDate.Month, (unsigned)sDate.Date,
+			 (unsigned)sTime.Hours, (unsigned)sTime.Minutes);
+	}
+	else{
+		snprintf(filename, sizeof(filename), "LOG_%03d.CSV", session_number);
+		session_number++;
+	}
+
 	FRESULT res = f_open(&log_file, filename, FA_CREATE_ALWAYS | FA_WRITE);
 	if (res != FR_OK){
 		fault_flags.sd_fault = true;
 	}
 	else if (res == FR_OK){
-		int header_len = snprintf(header, sizeof(header), "timestamp, id, dlc, d0,d1,d2,d3,d4,d5,d6,d7, lat, long, speed, accel_x, accel_y, accel_z\n");
+		int header_len = snprintf(header, sizeof(header), "timestamp, id, RPM, trtl, lat, long, speed, accel_x, accel_y, accel_z\n");
 		UINT bytes_written;
 		FRESULT res1 = f_write(&log_file, header, header_len, &bytes_written);
 		if (res1 != FR_OK){
@@ -67,7 +79,7 @@ void start_new_session_file(void){
 }
 
 void close_session_file(void){
-	/* Commit cached data before closing so removal/power-down does not lose it */
+	// Commit cached data before closing so removal/power-down does not delete it
 	int footer_len = snprintf(footer, sizeof(footer), "END OF SESSION\n");
 	UINT bytes_written;
 	FRESULT res = f_write(&log_file, footer, footer_len, &bytes_written);
@@ -79,7 +91,7 @@ void close_session_file(void){
 }
 
 void sd_recovery(void) {
-	/* Non-blocking remount attempt while the system FSM is in SYS_FAULT */
+	// non-blocking remount attempt while the system FSM is in SYS_FAULT
 	static uint32_t last_attempt = 0;
 	uint32_t now = HAL_GetTick();
 	if ((now - last_attempt) >= 3500){

@@ -37,7 +37,7 @@ void SYS_FSM_TICK(void){
         if (!sd_mount){
             fault_flags.sd_fault = true;
         }
-        /* Always enter IDLE so UI/CAN listen work even if SD is missing */
+        // enter idle so that UI and CAN still function
         if (peripherals_init || !sd_mount){
             current_state = SYS_IDLE;
         }
@@ -80,7 +80,7 @@ void SYS_FSM_TICK(void){
         if (sd_mount) {
             SD_Logger_DrainCAN(); // DRAIN CAN RB FROM HERE
         } else {
-            /* Still empty the RB so it cannot fill while display-only */
+
             can_frame_t drop;
             while (CANRingBuffer_Pop(&can_rb, &drop)) {
             }
@@ -96,7 +96,7 @@ void SYS_FSM_TICK(void){
 
         break;
 
-    case SYS_FAULT: // MIGHT WANT TO ADD SOMETHING HERE FOR CAN LATER ON
+    case SYS_FAULT:
         UI_FSM_Tick();
         imu_read();
         sd_recovery(); // ATTEMPT TO RETRY SD MOUNT
