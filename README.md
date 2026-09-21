@@ -31,7 +31,7 @@ A ground-up redesign of my [Automotive Black Box](https://github.com/s-l893/Auto
 
 ## 🎯 Overview
 
-V1 proved the concept: it logged RPM (CAN ID `0x158`), GPS, and accelerometer data from a 2016 Honda Accord V6 and was validated on real test drives. It also taught me hard lessons — most notably a floating CAN TXD line that held the bus dominant and caused ECU contention and battery drain.
+V1 proved the concept: it logged RPM (CAN ID `0x158`), GPS, and accelerometer data from a 2016 Honda Accord V6 and was validated on real test drives. It also taught me hard lessons — most notably a floating CAN TXD line that held the bus dominant and caused ECU contention resulting in extreme battery drain ~7V.
 
 V2 is the "do it properly" iteration:
 
@@ -59,18 +59,18 @@ V2 is the "do it properly" iteration:
 
 ## 📊 Project Status
 
-| Subsystem                         | Status                                                                     |
-| --------------------------------- | -------------------------------------------------------------------------- |
-| CAN RX → ring buffer → SD logging | ✅ Validated end-to-end on hardware                                        |
-| FatFs SD driver (SPI)             | ✅ Hand-written `user_diskio.c`; validated on breadboard                   |
-| IMU (MPU6050)                     | ✅ Driver complete and hardware-validated, integrated into log rows        |
-| GPS (NEO-M8N)                     | ✅ Driver validated; RTC sync; lat/lon/speed in CSV                        |
-| Display (ILI9341)                 | ✅ Hand-written driver with software landscape rotation                    |
-| Touch (XPT2046)                   | 🟡 Driver + tap/swipe classification done; on-hardware calibration pending |
-| Fault management + IWDG           | ✅ Implemented                                                             |
-| CAN per-ID decode                 | 🔲 Currently passive frame capture; real signal decode planned             |
-| CAN bus-off recovery              | 🟡 Code written, not yet validated with a forced bus-off                   |
-| Touchscreen UI / screens          | 🔲 Not started (layout sketched)                                           |
+| Subsystem                         | Status                                                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| CAN RX → ring buffer → SD logging | ✅ Validated end-to-end on hardware                                                                             |
+| FatFs SD driver (SPI)             | ✅ Hand-written `user_diskio.c`; validated on breadboard                                                        |
+| IMU (MPU6050)                     | ✅ Driver complete and hardware-validated, integrated into log rows                                             |
+| GPS (NEO-M8N)                     | ✅ Driver validated; RTC sync; lat/lon/speed in CSV                                                             |
+| Display (ILI9341)                 | ✅ Hand-written driver with software landscape rotation                                                         |
+| Touch (XPT2046)                   | 🟡 Driver + tap/swipe classification done; on-hardware calibration pending                                      |
+| Fault management + IWDG           | ✅ Implemented                                                                                                  |
+| CAN per-ID decode                 | 🔲 Currently passive frame capture; real signal decode planned                                                  |
+| CAN bus-off recovery              | 🟡 Code written, not yet validated with a forced bus-off                                                        |
+| Touchscreen UI / screens          | ✅ Complete, however still has some empty spots due to the sheer difficulty of finding the correct CAN PID code |
 
 **Resource usage (F446RE, as of Sep 14, 2026):** ~10.7 KB / 128 KB RAM (8.4 %), ~63 KB / 512 KB Flash (12.3 %) — plenty of headroom for the UI.
 
@@ -157,9 +157,11 @@ V2 is a **bare-metal, non-blocking superloop**. Nothing in the main loop waits o
 
 ## 🧠 Design Decisions
 
-**Bare-metal superloop, no RTOS.** The workload — a handful of periodic polls plus interrupt-fed buffers — doesn't justify scheduler overhead or the concurrency hazards that come with it. I'm saving the RTOS for the FOC motor-controller project, where hard real-time scheduling actually earns its keep.
+**Bare-metal superloop, no RTOS.** The workload, which is a handful of periodic polls plus interrupt-fed buffers doesn't justify scheduler overhead or the concurrency hazards that come with it. I'm saving the RTOS for my FOC motor-controller project, where hard real-time scheduling actually matters.
 
 **CAN peripheral can't disturb the vehicle.** After V1's bus-flood incident, the CAN handler enforces a silent mode in firmware so the logger never drives the bus, independent of what the wiring does.
+
+**CAN Passive Listener over Active CAN PID Request** I heavily considered changing this project to do both last minute due to the new finding that ATF temps and VCM (Variable Cylinder Management)engine status may require the MCU to send requests to the ECU, however I ultimately chose not to due to the low reliability of my CAN PID source.
 
 **Shutdown inferred from CAN silence.** Instead of adding a voltage-sense/ADC circuit, the firmware treats 2500 ms without a CAN frame as ignition-off and shuts down the log cleanly.
 
@@ -243,7 +245,7 @@ Hardware bring-up taught me more than the firmware did. The notable ones:
 | Problem                                               | Root cause                                                                                                                   | Fix / Lesson                                                                                                       |
 | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **Rev 1: blown fuses + smoke**                        | LM2596 buck module had an internally failed switch — near-0 Ω short between IN+ and OUT+                                     | Parked rev 1; continued on breadboard + bare Nucleo. Always check a power module before mating it to the board.    |
-| **Rev 1: I²C SDA/SCL swapped**                        | Hardware I²C1 pin roles are fixed in silicon; I routed them crossed                                                          | Cut traces, cross with jumper wires. **Check AF pin roles before routing.**                                        |
+| **Rev 1: I²C SDA/SCL swapped**                        | Hardware I²C1 pin roles are fixed in silicon; I routed them crossed                                                          | Cut traces, cross with jumper wires. Ultimately led to PCB redesign. **Check AF pin roles before routing.**        |
 | **Rev 2: mirrored DB9 footprint**                     | Footprint orientation error                                                                                                  | Custom crossover adapter cable                                                                                     |
 | **Altium / fab issues**                               | TVS orientation error, CAN transceiver `VREF` miswired, vault-component locking, binary-format drill file rejected by JLCPCB | Fixed in schematic/library; used a local integrated library; exported ASCII drill files                            |
 | **Display DC/RESET dead**                             | `PA2`/`PA3` are solder-bridged to USART2 on the Nucleo                                                                       | Bus-prep routine to release USART2 first. **Don't pick pins that silently double as other peripherals' defaults.** |
@@ -251,20 +253,22 @@ Hardware bring-up taught me more than the firmware did. The notable ones:
 | **CAN silence timeout never fired**                   | `can_frame_received_flag` was never cleared                                                                                  | Clear the flag on consumption — same pattern later reused for GPS                                                  |
 | **GPS stalled / garbled**                             | Wrong UART handle, bad `strtok` delimiters, no overflow recovery, non-RMC sentences fed to parser                            | Correct `huart4`, RMC filter, overflow recovery, UART-instance guard in the shared RX callback                     |
 | **SD module dead on PCB (MISO stuck low)**            | Module's VHCT125 buffer needs 4.5–5.5 V but its VCC was tapped from the 3.3 V LDO output                                     | Cut trace, bodge-wired buffer VCC to the raw ~5 V rail. **Read the datasheet for every chip on a "module."**       |
-| **Rev 1 SD intermittent**                             | Intermittent SCK line (likely PCB damage)                                                                                    | Bodge wire for SCK                                                                                                 |
+| **Rev 1 SD intermittent**                             | Intermittent SCK line (likely PCB damage or lifted pad)                                                                      | Bodge wire for SCK                                                                                                 |
 | **Debugging SD with a logic analyzer showed nothing** | Card wasn't physically connected during captures (MISO held high by MCU internal pull-up)                                    | Confirm physical connectivity before blaming firmware                                                              |
 
 ---
 
-## 🖥️ Planned UI
+## 🖥️ UI
 
 Dash-style layout on the 320×240 touchscreen:
 
-- Transmission / oil temperature
-- Gear + RPM, with a color flash near redline
-- G-force "ball" display (needs a circle-drawing primitive)
+- Transmission / engine coolant temperature
+- Gear + RPM, with a shift lights near redline
+- G-force (lateral, longitudinal) number display
 - Max acceleration / cornering stats
 - Fault / status box
+- GPS locked/unlocked
+- VCM active/inactive
 
 Touch priorities: **page navigation via swipe left/right** first (telemetry / GPS / fault status), then manual session start/stop, tap-to-acknowledge faults, and live config toggles if time allows.
 
@@ -286,7 +290,7 @@ Touch priorities: **page navigation via swipe left/right** first (telemetry / GP
 
 - [ ] Diode-OR between LM2596 output and STM32 rail (fix the USB backfeed)
 - [ ] Resolve the remaining SD interface fault on the rev-2 PCB
-- [ ] Next PCB revision incorporating all bodge-wire fixes
+- [ ] Next PCB revision incorporating all bodge-wire fixes and overall more space efficient design
 
 **Stretch**
 
