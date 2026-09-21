@@ -1,487 +1,309 @@
-# 🏎️ Automotive Black Box - Real-Time Vehicle Telemetry System
+# 🏎️ Automotive Black Box V2 — Custom-PCB Vehicle Telemetry Logger
 
-A full stack embedded systems project that transforms an STM32 microcontroller into a comprehensive automotive data logger, capturing real-time telemetry from a 2016 Honda Accord V6 and generating interactive visualizations, featuring a custom PCB and 3D-printed enclosure. Version 2 is currently in development.
+A ground-up redesign of my [Automotive Black Box](https://github.com/s-l893/Automotive-Telemetry-Data-Acquisition-System-Black-Box-) vehicle data logger. V2 moves from a breadboard prototype to a **custom Altium-designed PCB**, from a simple application loop to a **non-blocking, interrupt-driven bare-metal architecture**, and from a small OLED to a **touchscreen dashboard**. It logs CAN bus traffic, GPS position/speed, and IMU acceleration to an SD card, with a firmware-enforced safety model designed around the mistakes V1 taught me.
 
 ![Project Status](https://img.shields.io/badge/status-in%20development-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-STM32F446RE-orange)
+![Firmware](https://img.shields.io/badge/firmware-bare--metal%20C-lightgrey)
 
 ---
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
-- [Features](#features)
+- [What's New in V2](#whats-new-in-v2)
+- [Project Status](#project-status)
 - [Hardware](#hardware)
-- [System Architecture](#system-architecture)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Data Visualization](#data-visualization)
-- [Project Structure](#project-structure)
-- [Future Enhancements](#future-enhancements)
-- [Contributing](#contributing)
+- [Firmware Architecture](#firmware-architecture)
+- [Design Decisions](#design-decisions)
+- [Fault Handling](#fault-handling)
+- [Log Format](#log-format)
+- [Build & Flash](#build--flash)
+- [Safety Notes](#safety-notes)
+- [Bring-Up Log: Bugs & Lessons](#bring-up-log-bugs--lessons)
+- [Planned UI](#planned-ui)
+- [Roadmap](#roadmap)
 - [License](#license)
-- [Acknowledgments](#acknowledgments)
+- [Contact](#contact)
 
 ---
 
 ## 🎯 Overview
 
-This project implements a professional-grade automotive black box system that captures, logs, and visualizes vehicle telemetry data. Originally developed as a learning project to understand embedded systems, CAN bus communication, and real-time data processing, it has evolved into a comprehensive telemetry solution.
+V1 proved the concept: it logged RPM (CAN ID `0x158`), GPS, and accelerometer data from a 2016 Honda Accord V6 and was validated on real test drives. It also taught me hard lessons — most notably a floating CAN TXD line that held the bus dominant and caused ECU contention and battery drain.
 
-### Why This Project?
+V2 is the "do it properly" iteration:
 
-- **Learn by doing**: Hands-on experience with automotive protocols (CAN bus, OBD-II)
-- **Real-world application**: Working with production vehicle systems
-- **Data science integration**: Bridge embedded systems with data visualization
-- **Portfolio showcase**: Demonstrates full-stack embedded development skills
+- **Custom hardware** — schematic capture and layout in Altium Designer, fabricated by JLCPCB, hand-soldered, with real automotive input protection
+- **Robust firmware** — non-blocking superloop, interrupt-driven CAN RX, lock-free ring buffers, an FSM for control flow, and a hardware watchdog
+- **Safety by construction** — the CAN peripheral is configured so the logger cannot disturb the vehicle bus
+- **Touchscreen UI** — live data and page navigation on an ILI9341 display with XPT2046 touch (in progress)
+- **Generalized CAN capture** — no hardcoded Honda-specific RPM parsing; frames are captured by ID so the logger isn't tied to one vehicle
 
 ---
 
-## ✨ Features
+## 🆕 What's New in V2
 
-### Current Implementation
+| Area            | V1                            | V2                                                              |
+| --------------- | ----------------------------- | --------------------------------------------------------------- |
+| **Board**       | Breadboard + Nucleo           | Custom PCB (Altium → JLCPCB), OBD-II powered, protected input   |
+| **Display**     | SSD1306 OLED 128×64           | ILI9341 320×240 SPI TFT + XPT2046 touch                         |
+| **GPS**         | NEO-6M                        | NEO-M8N, interrupt-driven NMEA parsing                          |
+| **CAN**         | Hardcoded Honda RPM (`0x158`) | Generalized per-ID frame capture (per-ID decode in progress)    |
+| **Logging**     | Fixed 2 Hz CSV                | Per-CAN-frame rows + IMU/GPS fields, with a 200 ms sentinel row |
+| **Reliability** | Fuse + graceful degradation   | Watchdog, fault flags, soft/hard fault split, silent-mode CAN   |
+| **Shutdown**    | Manual (button / unplug)      | Inferred from CAN-bus silence (no voltage-sense circuit needed) |
 
-- ✅ **CAN Bus Interface**: Read real-time engine data from Honda J35Y1 V6 ECU
-- ✅ **Multi-Sensor Fusion**:
-  - MPU6050 accelerometer (±2g range, I²C)
-  - NEO-6M GPS module (UART, NMEA parsing)
-  - SD card data logging (FAT32, SPI)
-  - SSD1306 OLED display (128×64, I²C)
-- ✅ **Real-Time Data Logging**: 2Hz sampling rate to SD card (CSV format)
-- ✅ **VTEC Detection**: Automatic detection of Honda VTEC engagement for the J35Y1 V6 engine (>5150 RPM)
-- ✅ **Interactive Heatmaps**: Python-based visualization showing RPM, speed, and G-force intensity
-- ✅ **Safety Features**: Hardware fuse protection, error handling, graceful degradation
+---
 
-### Data Channels Captured
+## 📊 Project Status
 
-| Channel      | Description               | Source         | Range      |
-| ------------ | ------------------------- | -------------- | ---------- |
-| **RPM**      | Engine speed              | CAN (ID 0x158) | 0-7000     |
-| **Speed**    | Vehicle velocity          | GPS            | 0-200 km/h |
-| **Ax**       | Longitudinal acceleration | MPU6050        | ±2g        |
-| **Ay**       | Lateral acceleration      | MPU6050        | ±2g        |
-| **Az**       | Vertical acceleration     | MPU6050        | ±2g        |
-| **VTEC**     | VTEC system status        | CAN (derived)  | 0/1        |
-| **Throttle** | Accelerator position      | CAN (planned)  | 0-100%     |
-| **Location** | GPS coordinates           | NEO-6M         | WGS84      |
+| Subsystem                         | Status                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| CAN RX → ring buffer → SD logging | ✅ Validated end-to-end on hardware                                        |
+| FatFs SD driver (SPI)             | ✅ Hand-written `user_diskio.c`; validated on breadboard                   |
+| IMU (MPU6050)                     | ✅ Driver complete and hardware-validated, integrated into log rows        |
+| GPS (NEO-M8N)                     | ✅ Driver validated; RTC sync; lat/lon/speed in CSV                        |
+| Display (ILI9341)                 | ✅ Hand-written driver with software landscape rotation                    |
+| Touch (XPT2046)                   | 🟡 Driver + tap/swipe classification done; on-hardware calibration pending |
+| Fault management + IWDG           | ✅ Implemented                                                             |
+| CAN per-ID decode                 | 🔲 Currently passive frame capture; real signal decode planned             |
+| CAN bus-off recovery              | 🟡 Code written, not yet validated with a forced bus-off                   |
+| Touchscreen UI / screens          | 🔲 Not started (layout sketched)                                           |
+
+**Resource usage (F446RE, as of Sep 14, 2026):** ~10.7 KB / 128 KB RAM (8.4 %), ~63 KB / 512 KB Flash (12.3 %) — plenty of headroom for the UI.
 
 ---
 
 ## 🔧 Hardware
 
-### Bill of Materials
+### Components
 
-| Component           | Part Number                      | Quantity | Purpose                 | Cost (approx) |
-| ------------------- | -------------------------------- | -------- | ----------------------- | ------------- |
-| **Microcontroller** | STM32F446RET6 (Nucleo-64)        | 1        | Main processor          | $25           |
-| **CAN Transceiver** | SN65HVD230                       | 1        | CAN bus interface       | $3            |
-| **Accelerometer**   | MPU6050                          | 1        | G-force measurement     | $5            |
-| **GPS Module**      | NEO-6M                           | 1        | Position/speed tracking | $12           |
-| **Display**         | SSD1306 OLED (128×64)            | 1        | Real-time data display  | $8            |
-| **Storage**         | MicroSD card + adapter           | 1        | Data logging            | $8            |
-| **Misc**            | OBD-II cable, fuse holder, wires | -        | Connectivity            | $15           |
-|                     |                                  |          | **Total**               | **~$76**      |
+| Component           | Part                      | Interface     | Purpose                           |
+| ------------------- | ------------------------- | ------------- | --------------------------------- |
+| **MCU**             | STM32F446RE (Nucleo-64)   | —             | Main processor                    |
+| **CAN transceiver** | SN65HVD230                | CAN1          | Vehicle bus interface             |
+| **IMU**             | MPU6050                   | I²C1          | Acceleration (accel-only in use)  |
+| **GPS**             | NEO-M8N                   | UART4 @ 9600  | Position, speed, time (NMEA 0183) |
+| **Display**         | ILI9341 (SPI TFT)         | SPI1          | Dashboard / status                |
+| **Touch**           | XPT2046                   | SPI2          | Tap and swipe input               |
+| **Storage**         | microSD (FAT32 via FatFs) | SPI1 (shared) | Session logging                   |
+| **Buck converter**  | LM2596                    | —             | 12 V → ~5 V                       |
+| **LDO**             | AMS1117-3.3               | —             | 5 V → 3.3 V                       |
+| **Debug**           | ST-LINK VCP               | USART2        | Serial debug output               |
 
-### Pinout Configuration
+Display `DC` / `RESET` are on `PA2` / `PA3`. The display and SD card share SPI1; each driver re-asserts its own SPI mode at the start of every transaction, so they can coexist without a manual bus-reconfiguration step.
 
-```
-STM32F446RE Connections:
-├─ CAN Bus
-│  ├─ PA11: CAN1_RX  → SN65HVD230 TX
-│  └─ PA12: CAN1_TX  → SN65HVD230 RX
-├─ I²C1 (MPU6050 + OLED)
-│  ├─ PB8: I2C1_SCL
-│  └─ PB9: I2C1_SDA
-├─ SPI1 (SD Card)
-│  ├─ PA5: SPI1_SCK
-│  ├─ PA6: SPI1_MISO
-│  ├─ PA7: SPI1_MOSI
-│  └─ PA4: SD_CS (chip select)
-├─ UART4 (GPS)
-│  ├─ PA0: UART4_TX
-│  └─ PA1: UART4_RX
-└─ Debug
-   └─ PA2/PA3: USART2 (USB virtual COM port)
-```
-
-### Wiring Diagram
+### Power & Protection
 
 ```
-                    ┌─────────────────┐
-                    │   STM32F446RE   │
-                    │   (Nucleo-64)   │
-                    └─────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-   ┌────▼────┐         ┌────▼────┐        ┌────▼────┐
-   │ MPU6050 │         │SSD1306  │        │SN65HVD230│
-   │(I²C)    │         │(I²C)    │        │(CAN)     │
-   └─────────┘         └─────────┘        └────┬─────┘
-                                               │
-        ┌──────────────────┬──────────────────┘
-        │                  │
-   ┌────▼────┐        ┌────▼────┐
-   │ NEO-6M  │        │OBD-II   │
-   │ (UART)  │        │Port     │
-   └─────────┘        └─────────┘
-        │
-   ┌────▼────┐
-   │ SD Card │
-   │ (SPI)   │
-   └─────────┘
+OBD-II 12V ─► [ Blade fuse │ SMAJ15A TVS │ P-MOSFET reverse-polarity ] ─► LM2596 buck ─► ~5V rail ─► AMS1117-3.3 ─► 3.3V
 ```
+
+- **Reverse-polarity protection:** P-channel MOSFET
+- **Transient protection:** SMAJ15A TVS diode
+- **Overcurrent protection:** automotive blade fuse
+- **Decoupling** on all ICs
+- **CAN termination:** intentionally omitted — the vehicle bus is already terminated
+
+> ⚠️ **Known limitation (this board revision):** there is no protection between the LM2596 output and the STM32/ST-LINK rail. Powering the board over USB while the 12 V input is dead can backfeed the buck converter and damage it. See [Safety Notes](#safety-notes).
+
+### PCB
+
+Designed in **Altium Designer**, fabricated by **JLCPCB**, and hand-soldered. Two revisions have been built; see the [bring-up log](#bring-up-log-bugs--lessons) for what each revision taught me.
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ Firmware Architecture
 
-### Software Stack
-
-```
-┌─────────────────────────────────────────┐
-│         Application Layer               │
-│  (Data logging, GPS parsing, display)   │
-├─────────────────────────────────────────┤
-│         HAL Driver Layer                │
-│  (CAN, I²C, SPI, UART, GPIO, RTC)       │
-├─────────────────────────────────────────┤
-│         Hardware Abstraction            │
-│  (STM32 HAL, CMSIS)                     │
-└─────────────────────────────────────────┘
-```
-
-### Data Flow
+V2 is a **bare-metal, non-blocking superloop**. Nothing in the main loop waits on a peripheral; ISRs only move bytes and set flags, and the loop consumes them.
 
 ```
-CAN Bus (Car) ──┐
-GPS Module ─────┼──> STM32 ──> Processing ──> SD Card (CSV)
-MPU6050 ────────┘              │
-                               └──> OLED Display
-
-SD Card (CSV) ──> Python Script ──> Interactive HTML Map
+                ┌──────────────────────── ISRs ───────────────────────┐
+  CAN RX (FIFO) ─► can_ring_buffer (SPSC)                              │
+  UART4 RX (1B) ─► NMEA line buffer ─► nmea_parse_buffer + ready flag  │
+                └──────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+ ┌────────────────────────── Superloop ──────────────────────────┐
+ │  IWDG refresh                                                 │
+ │  fsm_sys (5-state system FSM)                                 │
+ │    ├─ imu_read()            (I²C poll)                        │
+ │    ├─ GPS_Driver_Update()   (parse RMC, fault timeout)        │
+ │    ├─ Touch_Update()        (SPI2 poll, tap/swipe classify)   │
+ │    ├─ fault checks          (CAN silence, GPS, touch, IMU)    │
+ │    └─ SD_Logger_DrainCAN()  (ring buffer → CSV → FatFs)       │
+ └───────────────────────────────────────────────────────────────┘
 ```
+
+### Modules
+
+| Module                 | Responsibility                                                            |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `ring_buffer.c/.h`     | Generic single-producer/single-consumer ring buffer                       |
+| `can_ring_buffer.c/.h` | CAN-frame ring buffer filled from the RX interrupt                        |
+| `can_handler.c/.h`     | CAN configuration, RX handling, silence timeout, bus-off recovery         |
+| `fsm_sys.c`            | Five-state system finite state machine                                    |
+| `fault.c/.h`           | Fault flags and severity handling                                         |
+| `sd_logger.c/.h`       | FatFs lifecycle, filename generation, CSV row formatting and drain        |
+| `user_diskio.c`        | Hand-written SD-over-SPI FatFs disk driver                                |
+| IMU driver             | MPU6050 init, `WHO_AM_I` handshake, calibration, offset-corrected reads   |
+| `gps_driver.c/.h`      | Interrupt-driven NMEA receive, RMC parsing, decimal-degree conversion     |
+| LCD driver             | ILI9341 init, windowing, chunked fills, logical-coordinate rotation layer |
+| `touch_driver.c/.h`    | XPT2046 reads, pixel mapping, tap/swipe classification                    |
 
 ---
 
-## 📦 Installation
+## 🧠 Design Decisions
 
-### Prerequisites
+**Bare-metal superloop, no RTOS.** The workload — a handful of periodic polls plus interrupt-fed buffers — doesn't justify scheduler overhead or the concurrency hazards that come with it. I'm saving the RTOS for the FOC motor-controller project, where hard real-time scheduling actually earns its keep.
 
-**Hardware:**
+**CAN peripheral can't disturb the vehicle.** After V1's bus-flood incident, the CAN handler enforces a silent mode in firmware so the logger never drives the bus, independent of what the wiring does.
 
-- STM32 Nucleo-F446RE development board
-- Components from [Bill of Materials](#bill-of-materials)
-- 2016 Honda Accord V6 (or compatible Honda vehicle)
+**Shutdown inferred from CAN silence.** Instead of adding a voltage-sense/ADC circuit, the firmware treats 2500 ms without a CAN frame as ignition-off and shuts down the log cleanly.
 
-**Software:**
+**Soft vs. hard faults.** Core CAN→SD logging is what matters. If the IMU fails to initialize, that's a _soft_ fault: logging continues without it rather than halting the whole system.
 
-- [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) (for firmware)
-- [Python 3.8+](https://www.python.org/downloads/) (for visualization)
-- Git
+**Sentinel rows keep sensor data flowing.** When the CAN bus is quiet, a sentinel row (`id = 0xFFFF`, `dlc = 0`) is emitted every 200 ms so GPS and IMU data still get logged.
 
-### Firmware Setup
+**ISR ↔ main-loop handoff via flag + stable copy.** The GPS ISR assembles a line in a fixed 85-byte buffer, copies the completed sentence into a separate parse buffer, then resets its index and sets a ready flag that the consumer clears. The same producer/consumer pattern fixed the CAN flag bug described below.
 
-1. **Clone the repository:**
+**Parse RMC only.** RMC alone carries fix validity, so it's sufficient for position, speed, and time without the extra parsing cost of GGA.
 
-   ```bash
-   git clone https://github.com/yourusername/automotive-black-box.git
-   cd automotive-black-box
-   ```
-
-2. **Open in STM32CubeIDE:**
-   - File → Open Projects from File System
-   - Select the `BlackBox_Final` folder
-   - Build the project (Ctrl+B)
-
-3. **Flash to STM32:**
-   - Connect Nucleo board via USB
-   - Run → Debug (F11) or Run (Ctrl+F11)
-
-### Visualization Setup
-
-1. **Create Python virtual environment:**
-
-   ```bash
-   cd tools
-   python -m venv map_env
-   ```
-
-2. **Activate environment:**
-
-   ```bash
-   # Windows
-   .\map_env\Scripts\activate
-
-   # macOS/Linux
-   source map_env/bin/activate
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install pandas folium branca numpy
-   ```
+**Software rotation for the display.** The specific ILI9341 clone on my module ignores the documented `MADCTL` MV (row/column exchange) bit, so landscape is achieved in software: a `LCD_SetWindow_Logical()` layer maps a 320×240 logical space onto the panel's native 240×320 addressing.
 
 ---
 
-## 🚀 Usage
+## 🚨 Fault Handling
 
-### 1. Hardware Connection
+| Fault                | Trigger                                            | Severity | Effect                                          |
+| -------------------- | -------------------------------------------------- | -------- | ----------------------------------------------- |
+| **CAN silence**      | No CAN frame for 2500 ms                           | —        | Interpreted as ignition-off → clean stop        |
+| **GPS fault**        | No NMEA line at all for 1.5 s (module not talking) | Soft     | Distinct from "alive but no fix" (`gps.locked`) |
+| **Touch fault**      | Touch held/stuck for 12 s                          | Soft     | Flagged for the UI                              |
+| **IMU init failure** | `WHO_AM_I` mismatch / no response                  | Soft     | Logging continues without IMU data              |
+| **Watchdog (IWDG)**  | Main loop stalls                                   | Hard     | MCU reset                                       |
 
-**⚠️ CRITICAL: Follow safety precautions**
-
-1. **Connect CAN transceiver:**
-   - SN65HVD230 CANH → OBD-II Pin 6
-   - SN65HVD230 CANL → OBD-II Pin 14
-   - OBD-II Pin 5 (GND) → **1A FUSE** → STM32 GND
-   - **DO NOT connect Pin 16 (12V)**
-
-2. **Power the system:**
-   - STM32 powered via USB from laptop
-   - Keep laptop on battery power (avoid ground loops)
-
-3. **Mount sensors:**
-   - MPU6050: Secure to flat surface in car
-   - GPS: Position with clear sky view
-   - OLED: Visible to driver (optional)
-
-### 2. Data Collection
-
-1. **Start the car** (engine running)
-2. **Plug OBD-II connector** into car's port
-3. **Monitor OLED display:**
-   - Should show RPM updating in real-time
-   - G-force readings during acceleration/braking
-   - GPS status indicator
-
-4. **Drive normally** - data logs automatically to SD card
-
-5. **Stop logging:**
-   - Press blue button on Nucleo (PC13) to stop
-   - Or unplug OBD-II connector
-
-### 3. Data Visualization
-
-1. **Remove SD card** from STM32
-
-2. **Copy CSV file** to `data/` folder:
-
-   ```bash
-   cp /path/to/sdcard/MMDDHHSS.csv ./data/
-   ```
-
-3. **Generate test data** (optional, for development):
-
-   ```bash
-   python data_sim.py
-   ```
-
-4. **Create heatmap:**
-
-   ```bash
-   python map_gen.py
-   ```
-
-5. **Open HTML file** in browser:
-   ```bash
-   # Output: data/your_file_RPM_heatmap.html
-   ```
-
-### Visualization Options
-
-Generate different data channel visualizations:
-
-```python
-# In map_gen.py, change data_channel parameter:
-generate_heatmap(data_path, data_channel='RPM')   # Engine speed
-generate_heatmap(data_path, data_channel='Spd')   # Vehicle speed
-generate_heatmap(data_path, data_channel='Ax')    # Acceleration
-generate_heatmap(data_path, data_channel='Ay')    # Cornering
-```
+The GPS timeout is stamped in the UART RX ISR on every complete line — _before_ sentence-type filtering — so it answers "is the module talking?" rather than "does it have a lock?".
 
 ---
 
-## 📊 Data Visualization
+## 📝 Log Format
 
-The Python visualization tool generates interactive heatmaps showing driving intensity:
+Sessions are logged as CSV to a FAT32 SD card. Each row contains the CAN frame fields, followed by GPS fields (latitude, longitude, speed) and IMU fields (Ax, Ay, Az). GPS and IMU columns appear in the same order in both row types:
 
-### Color Schemes
+- **CAN-frame rows** — written per received frame
+- **Sentinel rows** — `id = 0xFFFF`, `dlc = 0`, written every 200 ms of CAN silence so GPS/IMU data keep flowing
 
-**RPM Heatmap (Engine Load):**
-
-- 🟢 **Green**: Cruising (0-3000 RPM)
-- 🟡 **Yellow**: Moderate acceleration (3000-5000 RPM)
-- 🔴 **Red**: High performance (5000-7000 RPM, VTEC engaged)
-
-**Speed Heatmap:**
-
-- 🔵 **Blue**: Low speed (<50 km/h)
-- 🔴 **Red**: High speed (>100 km/h)
-
-**G-Force Heatmap (Ax - Longitudinal):**
-
-- 🟢 **Green**: Steady state
-- 🟡 **Yellow**: Moderate acceleration/braking
-- 🔴 **Red**: Hard acceleration/braking (>0.6g)
-
-### Example Output
-
-![Example Heatmap](docs/example_heatmap.png)
-_Heatmap showing VTEC engagement during acceleration on Richmond Street_
-
-### Features
-
-- ⚡ **VTEC markers**: Orange circles show Honda VTEC engagement points
-- 🏁 **Start/Finish flags**: Green flag (start) and red flag (end)
-- 📊 **Statistics overlay**: Real-time telemetry summary
-- 🗺️ **Interactive map**: Zoom, pan, click markers for details
+> **Toolchain note:** float formatting via `snprintf` requires newlib-nano float support — add `-u _printf_float` under _MCU GCC Linker → Miscellaneous_.
 
 ---
 
-## 📁 Project Structure
+## 🛠️ Build & Flash
 
-```
-automotive-black-box/
-├── Core/
-│   ├── Src/
-│   │   ├── main.c              # Main application logic
-│   │   ├── can.c               # CAN bus driver
-│   │   ├── gpio.c              # GPIO configuration
-│   │   └── ...
-│   └── Inc/
-│       ├── main.h
-│       ├── mpu6050.h           # Accelerometer driver
-│       ├── ssd1306.h           # OLED display driver
-│       └── ...
-├── Drivers/                    # STM32 HAL drivers
-├── Middlewares/
-│   └── FatFs/                  # FAT filesystem for SD card
-├── tools/
-│   ├── map_gen.py              # Main visualization script
-│   ├── data_sim.py             # Test data generator
-│   └── requirements.txt        # Python dependencies
-├── data/                       # CSV data files (gitignored)
-├── docs/                       # Documentation and images
-├── .gitignore
-├── README.md
-└── LICENSE
-```
+**Requirements:** STM32CubeIDE, STM32CubeMX (bundled), an ST-LINK (on the Nucleo), a serial terminal (PuTTY etc.) for debug output on USART2.
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/s-l893/<your-v2-repo>.git
+   cd <your-v2-repo>
+   ```
+
+2. **Open in STM32CubeIDE** — _File → Open Projects from File System_, select the project folder.
+
+3. **Check the CubeMX configuration**
+   - Enable the **UART4 global interrupt** in NVIC (GPS reception depends on it)
+   - Confirm SPI1 (display + SD) and SPI2 (touch) are enabled
+
+4. **Add the linker flag** `-u _printf_float` (see [Log Format](#log-format)).
+
+5. **Build** (Ctrl+B) and **flash** (Run → Debug, F11).
+
+6. **Open a serial terminal** on the ST-LINK virtual COM port to watch debug output.
 
 ---
 
-## 🔮 Future Enhancements
+## ⚠️ Safety Notes
 
-### Planned Features
+- **Power via USB only on the current board revision.** Because of the missing output-side protection on the LM2596, do **not** have USB and the 12 V OBD-II input live at the same time. Until the fix lands, the OBD/CAN transceiver side is left unpowered/unwired during bench work.
+- **Planned fix:** a correctly oriented diode between the LM2596 output and the STM32 rail to diode-OR the two power sources.
+- **The logger must never transmit on the vehicle bus.** Keep the firmware's CAN silent-mode configuration intact and always keep a fuse in the ground/power path when connecting to a real vehicle.
+- Only use on vehicles you own or have permission to work on, and follow local regulations around OBD-II access.
 
-- [ ] **OBD-II Standard PIDs**: Read throttle position, coolant temp, MAF
-- [ ] **Real-time transmission**: Bluetooth/WiFi streaming to phone app
-- [ ] **Machine learning**: Driving behavior analysis and scoring
-- [ ] **3D visualization**: Altitude-aware path rendering
-- [ ] **Video integration**: Sync dashcam footage with telemetry
-- [ ] **Cloud storage**: Automatic upload to AWS/Firebase
-- [ ] **Multi-vehicle support**: Configurable CAN IDs for different makes/models
-
-### Hardware Improvements
-
-- [ ] Custom PCB design (eliminate breadboard)
-- [ ] Weatherproof enclosure
-- [ ] Backup power (supercapacitor for safe shutdown)
-- [ ] OBD-II power regulation (eliminate USB dependency)
-- [ ] High-precision IMU (9-DOF with gyroscope)
-
-### Software Optimizations
-
-- [ ] DMA for CAN/UART (reduce CPU load)
-- [ ] FreeRTOS integration (real-time task scheduling)
-- [ ] Circular buffer logging (prevent SD card wear)
-- [ ] Compression (reduce file size by 60%)
-- [ ] Web dashboard (real-time browser-based monitoring)
+**This is an educational project. The author assumes no liability for damage, injury, or legal issues arising from its use.**
 
 ---
 
-## 🤝 Contributing
+## 🔍 Bring-Up Log: Bugs & Lessons
 
-Contributions are welcome! This project is a learning resource for anyone interested in automotive embedded systems.
+Hardware bring-up taught me more than the firmware did. The notable ones:
 
-### How to Contribute
+| Problem                                               | Root cause                                                                                                                   | Fix / Lesson                                                                                                       |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Rev 1: blown fuses + smoke**                        | LM2596 buck module had an internally failed switch — near-0 Ω short between IN+ and OUT+                                     | Parked rev 1; continued on breadboard + bare Nucleo. Always check a power module before mating it to the board.    |
+| **Rev 1: I²C SDA/SCL swapped**                        | Hardware I²C1 pin roles are fixed in silicon; I routed them crossed                                                          | Cut traces, cross with jumper wires. **Check AF pin roles before routing.**                                        |
+| **Rev 2: mirrored DB9 footprint**                     | Footprint orientation error                                                                                                  | Custom crossover adapter cable                                                                                     |
+| **Altium / fab issues**                               | TVS orientation error, CAN transceiver `VREF` miswired, vault-component locking, binary-format drill file rejected by JLCPCB | Fixed in schematic/library; used a local integrated library; exported ASCII drill files                            |
+| **Display DC/RESET dead**                             | `PA2`/`PA3` are solder-bridged to USART2 on the Nucleo                                                                       | Bus-prep routine to release USART2 first. **Don't pick pins that silently double as other peripherals' defaults.** |
+| **Display landscape broken**                          | ILI9341 clone ignores `MADCTL` MV bit                                                                                        | Software coordinate-rotation layer, verified with a 4-corner test                                                  |
+| **CAN silence timeout never fired**                   | `can_frame_received_flag` was never cleared                                                                                  | Clear the flag on consumption — same pattern later reused for GPS                                                  |
+| **GPS stalled / garbled**                             | Wrong UART handle, bad `strtok` delimiters, no overflow recovery, non-RMC sentences fed to parser                            | Correct `huart4`, RMC filter, overflow recovery, UART-instance guard in the shared RX callback                     |
+| **SD module dead on PCB (MISO stuck low)**            | Module's VHCT125 buffer needs 4.5–5.5 V but its VCC was tapped from the 3.3 V LDO output                                     | Cut trace, bodge-wired buffer VCC to the raw ~5 V rail. **Read the datasheet for every chip on a "module."**       |
+| **Rev 1 SD intermittent**                             | Intermittent SCK line (likely PCB damage)                                                                                    | Bodge wire for SCK                                                                                                 |
+| **Debugging SD with a logic analyzer showed nothing** | Card wasn't physically connected during captures (MISO held high by MCU internal pull-up)                                    | Confirm physical connectivity before blaming firmware                                                              |
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+---
 
-### Areas for Contribution
+## 🖥️ Planned UI
 
-- **Firmware**: Optimize sampling rates, add new sensors
-- **Visualization**: New chart types, 3D rendering, animated playback
-- **Documentation**: Tutorials, wiring guides, troubleshooting
-- **Testing**: Compatibility with other Honda models or manufacturers
-- **Hardware**: Custom PCB designs, 3D-printed enclosures
+Dash-style layout on the 320×240 touchscreen:
+
+- Transmission / oil temperature
+- Gear + RPM, with a color flash near redline
+- G-force "ball" display (needs a circle-drawing primitive)
+- Max acceleration / cornering stats
+- Fault / status box
+
+Touch priorities: **page navigation via swipe left/right** first (telemetry / GPS / fault status), then manual session start/stop, tap-to-acknowledge faults, and live config toggles if time allows.
+
+> Some of these readouts (gear, temperatures) depend on the CAN per-ID decode work below.
+
+---
+
+## 🔮 Roadmap
+
+**Firmware**
+
+- [ ] On-hardware touch calibration (replace theoretical full-range mapping with measured corner values)
+- [ ] CAN per-ID decode for real vehicle signals (RPM, etc.), configurable rather than hardcoded
+- [ ] Validate CAN bus-off recovery with a deliberately forced bus-off
+- [ ] `fsm_ui.c`, font table + `draw_string`, circle primitive, screen layouts
+- [ ] Display / SD SPI bus arbitration under real load
+
+**Hardware**
+
+- [ ] Diode-OR between LM2596 output and STM32 rail (fix the USB backfeed)
+- [ ] Resolve the remaining SD interface fault on the rev-2 PCB
+- [ ] Next PCB revision incorporating all bodge-wire fixes
+
+**Stretch**
+
+- [ ] On-device graphing / session review
+- [ ] Standard OBD-II PID support
+- [ ] Multi-vehicle CAN configuration
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-### Libraries & Tools
-
-- **STM32 HAL**: STMicroelectronics Hardware Abstraction Layer
-- **FatFs**: ELM-ChaN's FAT filesystem module
-- **Folium**: Python library for interactive maps
-- **Branca**: Color mapping for Python visualizations
-
-### Learning Resources
-
-- [STM32 CAN Tutorial](https://controllerstech.com/can-protocol-in-stm32/) by ControllersTech
-- [Understanding OBD-II](https://en.wikipedia.org/wiki/OBD-II_PIDs) - Wikipedia
-- [MPU6050 Guide](https://invensense.tdk.com/products/motion-tracking/6-axis/mpu-6050/) by TDK InvenSense
-- [CAN Bus Explained](https://www.csselectronics.com/pages/can-bus-simple-intro-tutorial) by CSS Electronics
-
-### Inspiration
-
-This project was inspired by my love for cars and to make something cool. 😎
+MIT — see [LICENSE](LICENSE).
 
 ---
 
 ## 📧 Contact
 
-**Sunny Lin** - sunnylin893@gmail.com
+**Sunny Lin** — sunnylin893@gmail.com
 
-Project Link: [https://github.com/s-l893/Automotive-Telemetry-Data-Acquisition-System-Black-Box-](https://github.com/s-l893/Automotive-Telemetry-Data-Acquisition-System-Black-Box-)
-
----
-
-## ⚠️ Safety & Legal Disclaimer
-
-**IMPORTANT**: This device interfaces with critical vehicle systems. Improper use may:
-
-- Cause vehicle malfunction
-- Void warranty
-- Violate local regulations
-
-**User Responsibilities:**
-
-- ✅ Only use on vehicles you own or have permission to modify
-- ✅ Follow all local laws regarding OBD-II access
-- ✅ Never modify while vehicle is in motion
-- ✅ Use fused connections to prevent electrical damage
-- ✅ Test in safe, controlled environments
-
-**This project is for educational purposes. The authors assume no liability for damages, injuries, or legal issues arising from its use.**
-
----
-
-<div align="center">
-
-Made with ❤️ and ☕ by automotive enthusiasts
-
-**If this project helped you, please ⭐ star the repo!**
-
-</div>
+V1 repository: [Automotive-Telemetry-Data-Acquisition-System-Black-Box-](https://github.com/s-l893/Automotive-Telemetry-Data-Acquisition-System-Black-Box-)
