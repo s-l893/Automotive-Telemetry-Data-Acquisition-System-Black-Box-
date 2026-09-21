@@ -58,7 +58,7 @@
 extern CAN_HandleTypeDef hcan1;
 extern UART_HandleTypeDef huart4;
 /* USER CODE BEGIN EV */
-extern UART_HandleTypeDef huart4;
+
 /* USER CODE END EV */
 
 /******************************************************************************/

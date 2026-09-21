@@ -30,7 +30,6 @@ void SD_CS_ForceIdleHigh(void)
 
 	__HAL_RCC_GPIOC_CLK_ENABLE();
 
-	/* Force CS candidates to push-pull outputs (survives Cube/pinmux surprises) */
 	GPIO_InitStruct.Pin = GPIO_PIN_4 | CS_SPI1_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -45,7 +44,7 @@ static void SD_CS_High(void)
 {
 	HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_SET);
 #if SD_CS_USE_PC4
-	/* Keep unused CS_SPI1 (PC12) deselected */
+	/* Keep unused CS_SPI1 (PC12) deselected debugging*/
 	HAL_GPIO_WritePin(CS_SPI1_GPIO_Port, CS_SPI1_Pin, GPIO_PIN_SET);
 #endif
 }
@@ -100,7 +99,7 @@ void SD_SendCommand(uint8_t cmd, uint32_t arg, uint8_t crc)
 		HAL_SPI_TransmitReceive(&hspi1, &frame[i], &rx, 1, HAL_MAX_DELAY);
 	}
 }
-
+// meant for reading a longer, 5-byte response from sd card used for v2 sd card init (cmd8)
 void SD_ReadR7(uint8_t *response)
 {
 	uint8_t tx = 0xFF, rx = 0xFF;
@@ -118,7 +117,7 @@ void SD_ReadR7(uint8_t *response)
 		response[i] = rx;
 	}
 }
-
+// reads simplest type of sd card response
 uint8_t SD_ReadR1(void)
 {
 	uint8_t tx = 0xFF, rx = 0xFF;

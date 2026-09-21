@@ -34,4 +34,4 @@ bool CANRingBuffer_Pop(volatile can_ring_buffer_t*, can_frame_t*);
 
 
 
-#endif /* SRC_CAN_RING_BUFFER_H_ */
+#endif
