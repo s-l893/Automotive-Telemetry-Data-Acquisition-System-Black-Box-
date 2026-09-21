@@ -38,6 +38,7 @@
 #include "imu_selftest.h"
 #include "imu_pipeline_test.h"
 #include "sd_spi_bus.h"
+#include "display.h"
 
 /* USER CODE END Includes */
 
@@ -123,9 +124,10 @@ int main(void)
 #else
 #if IMU_PIPELINE_TEST_ENABLE
   /* USART2 up before mount so SDMOUNT line is visible on ST-Link VCP */
+  /* NOTE: USART2 steals PA2/PA3 — conflicts with display DC/RESET */
   IMU_PipelineTest_Init();
 #else
-  MX_USART2_UART_Init();
+  /* MX_USART2_UART_Init(); — do not enable while LCD uses PA2/PA3 */
 #endif
   /* TEMP: full SD SPI probe (CS / idle MISO / Mode0+Mode3 CMD0) */
   SD_SPI_DebugProbe();
@@ -138,6 +140,11 @@ int main(void)
   GPS_Driver_Init();
 
   can_handler_init(); // CURRENTLY DOES NOT HAVE ANYTHING THAT SHOWS IT HAS SUCCEEDED COME BACK LATER TO FIX
+
+  /* Display after SD so LCD_BusPrepare() can restore SPI1 Mode0 */
+  LCD_Init();
+  LCD_FillScreen(0x07E0);
+  LCD_FillRect(0, 0, 20, 20, 0x001F); /* red smoke test */
 
 #if IMU_SELFTEST_ENABLE
   SD_Logger_Init();
