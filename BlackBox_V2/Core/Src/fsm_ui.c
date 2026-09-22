@@ -143,35 +143,30 @@ static float fabsf_local(float v)
 
 static void format_gear(char *out, size_t n)
 {
-	/* Shifter: 0x188 byte3. Subgear: 0x188 byte4. */
+	/* Shifter from 0x188; subgear estimated from RPM/speed ratio */
 	int shifter = (int)vehicle_state.values[SIG_SHIFTER] & 0x0F;
 	int gear = (int)vehicle_state.values[SIG_GEAR];
 	char mode = '?';
 
-	if (!vehicle_state.valid[SIG_SHIFTER] && !vehicle_state.valid[SIG_GEAR]) {
+	if (!vehicle_state.valid[SIG_SHIFTER]) {
 		snprintf(out, n, "--");
 		return;
 	}
 
-	if (vehicle_state.valid[SIG_SHIFTER]) {
-		switch (shifter) {
-		case 0x00: mode = 'S'; break;
-		case 0x01: mode = 'P'; break;
-		case 0x02: mode = 'R'; break;
-		case 0x04: mode = 'N'; break;
-		case 0x08: mode = 'D'; break;
-		default: mode = '?'; break;
-		}
+	switch (shifter) {
+	case 0x00: mode = 'S'; break;
+	case 0x01: mode = 'P'; break;
+	case 0x02: mode = 'R'; break;
+	case 0x04: mode = 'N'; break;
+	case 0x08: mode = 'D'; break;
+	default: mode = '?'; break;
 	}
 
-	if (!vehicle_state.valid[SIG_GEAR] || mode == 'P' || mode == 'R' || mode == 'N') {
+	if (mode == 'P' || mode == 'R' || mode == 'N') {
 		snprintf(out, n, "%c", mode);
-	} else if (gear >= 1 && gear <= 6) {
+	} else if (vehicle_state.valid[SIG_GEAR] && gear >= 1 && gear <= 6) {
 		snprintf(out, n, "%c%d", mode, gear);
-	} else if (gear == 10 || gear == 11) {
-		snprintf(out, n, "%c-", mode);
 	} else {
-		/* 0 at rest, 7 during N handoff, etc. */
 		snprintf(out, n, "%c", mode);
 	}
 }
