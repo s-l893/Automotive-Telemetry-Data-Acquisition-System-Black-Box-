@@ -16,10 +16,9 @@ static const can_signal_def_t can_signal_table[] = {
     // signal_id        name          can_id  type            b0 b1  scale           offset   nibble       bit
     { SIG_RPM,        "RPM",        0x158, DECODE_RAW16,   2, 3, 0.0f,            0.0f,   NIBBLE_HIGH, 0 },
     { SIG_THROTTLE,   "Throttle",   0x17C, DECODE_LINEAR,  0, 0, 100.0f / 255.0f, 0.0f,   NIBBLE_HIGH, 0 },
-    /* 0x188: PRNDS bitmask only (0=S,1=P,2=R,4=N,8=D). Byte0 is solenoid state, not 1-6. */
+    /* 0x188: PRNDS bitmask byte3 (0=S,1=P,2=R,4=N,8=D); subgear byte4 */
     { SIG_SHIFTER,    "Shifter",    0x188, DECODE_NIBBLE,  3, 0, 0.0f,            0.0f,   NIBBLE_LOW,  0 },
-    /* Engaged ratio 1-6 on 0x1A4 (original 2016 map) — separate from shifter on 0x188 */
-    { SIG_GEAR,       "Gear",       0x1A4, DECODE_NIBBLE,  1, 0, 0.0f,            0.0f,   NIBBLE_LOW,  0 },
+    { SIG_GEAR,       "Gear",       0x188, DECODE_LINEAR,  4, 0, 1.0f,            0.0f,   NIBBLE_HIGH, 0 },
     /* VCM: store full byte1; UI tests bit0 (and bit1 as fallback) */
     { SIG_VCM,        "VCM",        0x1A6, DECODE_LINEAR,  1, 0, 1.0f,            0.0f,   NIBBLE_HIGH, 0 },
     { SIG_ECT,        "ECT",        0x324, DECODE_LINEAR,  0, 0, 1.0f,            -40.0f, NIBBLE_HIGH, 0 },

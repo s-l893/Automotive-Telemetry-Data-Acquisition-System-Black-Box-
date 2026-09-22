@@ -40,9 +40,9 @@ static void can_apply_filters(void)
 
 	filter_config.FilterBank       = 1;
 	filter_config.FilterIdHigh     = (0x324 << 5); /* ECT / ATF */
-	filter_config.FilterIdLow      = (0x1A4 << 5); /* Engaged gear */
+	filter_config.FilterIdLow      = (0x324 << 5);
 	filter_config.FilterMaskIdHigh = (0x324 << 5);
-	filter_config.FilterMaskIdLow  = (0x1A4 << 5);
+	filter_config.FilterMaskIdLow  = (0x324 << 5);
 	HAL_CAN_ConfigFilter(&hcan1, &filter_config);
 }
 
