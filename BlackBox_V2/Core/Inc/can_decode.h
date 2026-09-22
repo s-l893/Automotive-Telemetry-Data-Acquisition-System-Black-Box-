@@ -13,9 +13,10 @@
 
 typedef enum {
     SIG_RPM = 0,
+    SIG_SPEED_KPH,  /* vehicle speed km/h from 0x158 bytes 0-1 */
     SIG_THROTTLE,
     SIG_SHIFTER,
-    SIG_GEAR,
+    SIG_GEAR,       /* estimated 1-6 from RPM/speed ratio in D/S */
     SIG_VCM,
     SIG_ECT,
     SIG_TRANS_TEMP,
@@ -23,10 +24,10 @@ typedef enum {
 } signal_id_t;
 
 typedef enum {
-    DECODE_RAW16,   /* 2-byte combine, no scale/offset (e.g. RPM) */
-    DECODE_LINEAR,  /* 1 byte -> (raw * scale) + offset (e.g. throttle %, temps) */
-    DECODE_NIBBLE,  /* 1 byte -> high or low nibble, raw integer (e.g. shifter, gear) */
-    DECODE_BIT      /* 1 byte -> single bit, 0/1 (e.g. VCM active) */
+    DECODE_RAW16,   /* 2-byte combine; optional scale if scale != 0 */
+    DECODE_LINEAR,  /* 1 byte -> (raw * scale) + offset */
+    DECODE_NIBBLE,  /* high or low nibble */
+    DECODE_BIT      /* single bit */
 } decode_type_t;
 
 typedef enum {
@@ -39,17 +40,17 @@ typedef struct {
     const char     *name;
     uint32_t        can_id;
     decode_type_t   decode_type;
-    uint8_t         byte_offset;   /* primary byte (RAW16 high byte, LINEAR/NIBBLE/BIT byte) */
-    uint8_t         byte_offset2;  /* RAW16 low byte only */
-    float           scale;         /* LINEAR only */
-    float           offset;        /* LINEAR only */
-    nibble_select_t nibble;        /* NIBBLE only */
-    uint8_t         bit_position;  /* BIT only */
+    uint8_t         byte_offset;
+    uint8_t         byte_offset2;
+    float           scale;
+    float           offset;
+    nibble_select_t nibble;
+    uint8_t         bit_position;
 } can_signal_def_t;
 
 typedef struct {
     float values[SIG_COUNT];
-    bool  valid[SIG_COUNT]; /* true once at least one frame has decoded this signal */
+    bool  valid[SIG_COUNT];
 } vehicle_state_t;
 
 extern vehicle_state_t vehicle_state;
