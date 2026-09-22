@@ -143,7 +143,7 @@ static float fabsf_local(float v)
 
 static void format_gear(char *out, size_t n)
 {
-	/* Shifter: 0x188 byte3. Gear: 0x1A4 byte1 low nibble (1-6). */
+	/* Shifter: 0x188 byte3. Subgear: 0x188 byte4. */
 	int shifter = (int)vehicle_state.values[SIG_SHIFTER] & 0x0F;
 	int gear = (int)vehicle_state.values[SIG_GEAR];
 	char mode = '?';

@@ -87,7 +87,7 @@ Plenty of headroom left.
 
 ## 📸 Gallery & Demos
 
-> Pictures will be added soon!
+> Pictures will be added soon! The custom enclosure needs to be 3D-printed and then assembled.
 
 ### The Board
 
@@ -282,7 +282,7 @@ Sessions are logged as CSV to a FAT32 SD card. Each row contains the CAN frame f
 ## ⚠️ Safety Notes
 
 - **Keep the fuse in.** The 2 A blade fuse has saved me many times during board bring-up. Never bypass it.
-- **Power via USB only on the current board revision.** Because of the missing output-side protection on the LM2596, do **not** have USB and the 12 V OBD-II input live at the same time. Until the fix lands, the OBD/CAN transceiver side is left unpowered/unwired during bench work.
+- **Power via USB only on the current board revision.** Because of the missing output-side protection on the LM2596, do **not** have the USB as the sole power source for the circuit with the LM2596 buck converter soldered/connected. Until the fix lands, the OBD/CAN transceiver side is left unpowered/unwired from the STM32's USB power source during bench work.
 - **Planned fix:** a correctly oriented diode between the LM2596 output and the STM32 rail to diode-OR the two power sources.
 - **The logger must never transmit on the vehicle bus.** Keep the firmware's CAN silent-mode configuration intact.
 - Only use on vehicles you own or have permission to work on, and follow local regulations around OBD-II access.
@@ -297,18 +297,18 @@ Building V2 did not go smoothly. These are the big ones.
 
 ### PCB & Hardware
 
-- **DB9 port incorrectly wired (rev 2).** The DB9 footprint was mirrored, so the board couldn't plug into the cable as designed. Fix: I built a **custom DB9 crossover cable**.
+- **DB9 port incorrectly wired (rev 2).** The DB9 footprint was partially mirrored or just wrong, so the board couldn't plug into the cable as designed. Fix: I built a **custom DB9 crossover cable**.
 - **Fuse holder hole too small (rev 1).** The drill hole for the fuse holder was undersized on the first revision.
-- **Failed solder attempt on the first PCB.**
+- **Failed solder attempt on the first PCB: lifted pads, burnt connections, torn traces.**
 - **No diode for reverse-current protection on the LM2596.** Nothing sits between the buck converter's output and the STM32/ST-LINK rail, so powering over USB backfeeds the converter. The fix (a diode to OR the two supplies) is identified but not yet implemented on this revision — for now I power over USB only.
 - **PA2/PA3 interfering with USART2.** Solder bridges on the Nucleo tie these pins to USART2, which fought the display's DC/RESET lines. Fix: disable USART2 and add a bus-prep routine that releases those pins before the display uses them. **Lesson:** don't pick pins that silently double as other peripherals' defaults.
 
-### SD Card Saga
+### SD Card Troubles
 
 - **`CMD0` returning `0xFF`.** Debugged with a **Saleae logic analyzer**. An early false lead was that the card wasn't physically wired in during captures, so MISO was just being held high by the MCU's internal pull-up. The eventual real cause was a **bus conflict in the card init sequence between `CMD55` and `CMD41`**.
-- **MISO stuck low with the SPI SD module.** The module's level-shifting buffer (VHCT125) needs 4.5–5.5 V but was being fed from the 3.3 V regulator output. Fix: cut the trace and bodge-wire the buffer's VCC to the raw ~5 V rail. **Lesson:** read the datasheet for every chip hiding on a "module."
-- **microSD SCK bodge wire.** The SCK line was intermittent (likely PCB damage or a lifted pad), so it needed a bodge wire — which eventually **broke after many re-solder attempts**. This was after originally using an SPI SD module.
-- **Soldered a microSD-to-SD card adapter directly** to the board as a workaround.
+- **MISO stuck low with the SPI SD module.** The module's level-shifting buffer (VHCT125) needs 4.5–5.5 V but was being fed from the 3.3 V regulator output. Original Fix: cut the trace and bodge-wire the buffer's VCC to the raw ~5 V rail. Still encountered issues, am still unsure if this was due to the following issue below or the module itself. **Lesson:** read the datasheet for every chip hiding on a "module."
+- **microSD SCK bodge wire.** The SCK line was intermittent (likely PCB damage or a lifted pad), so it needed a bodge wire — which eventually **broke after many re-solder attempts with the SPI SD module**. This was after originally using an SPI SD module.
+- **Soldered a microSD-to-SD card adapter directly** to the board as a workaround. Ugly, but it works.
 
 ### Debugging
 
@@ -316,8 +316,8 @@ Building V2 did not go smoothly. These are the big ones.
 
 ### Vehicle & CAN
 
-- **V1: many of the car's control modules responding with dominant bits, draining the battery.** A floating CAN TXD line held the bus dominant, causing ECU contention and extreme battery drain (~7 V). This directly shaped V2's firmware-enforced silent CAN mode.
-- **Very hard to find accurate manufacturer CAN information.** Manufacturer-specific CAN IDs, signal layouts, and PIDs aren't standardized or publicly documented, so figuring out what a given ID or request means takes serious digging. This is the reason for the empty spots on the dashboard and for staying a passive listener.
+- **V1: many of the car's control modules responding with dominant bits, draining the battery.** A floating CAN TXD line held the bus dominant, causing ECU contention and extreme battery drain (~7 V). This directly shaped V2's firmware-enforced silent CAN mode. Forced me to take a trip to Costco in one of London's frequent extreme snow squalls hauling back a 50 pound lead-acid battery.
+- **Very hard to find accurate manufacturer CAN information.** Manufacturer-specific CAN IDs, signal layouts, and PIDs aren't standardized or publicly documented, so figuring out what a given ID or request means takes serious digging (Major credit to Google Gemini Deep Research). This is the reason for the empty spots on the dashboard and for staying a passive listener.
 
 ### Parts & Logistics
 
