@@ -282,7 +282,7 @@ Sessions are logged as CSV to a FAT32 SD card. Each row contains the CAN frame f
 ## ⚠️ Safety Notes
 
 - **Keep the fuse in.** The 2 A blade fuse has saved me many times during board bring-up. Never bypass it.
-- **Power via USB only on the current board revision.** Because of the missing output-side protection on the LM2596, do **not** have the USB as the sole power source for the circuit with the LM2596 buck converter soldered/connected. Until the fix lands, the OBD/CAN transceiver side is left unpowered/unwired from the STM32's USB power source during bench work.
+- **Do not connect LM2596 before all functions are validated.** Because of the missing output-side protection on the LM2596, do **not** have the USB as the sole power source for the circuit with the LM2596 buck converter soldered/connected. Until the fix lands, the OBD/CAN transceiver side is left unpowered/unwired from the STM32's USB power source during bench work. Alternatively, connect everything apart from the AMS1117 and you can continue to validate the firmware while on the PCB.
 - **Planned fix:** a correctly oriented diode between the LM2596 output and the STM32 rail to diode-OR the two power sources.
 - **The logger must never transmit on the vehicle bus.** Keep the firmware's CAN silent-mode configuration intact.
 - Only use on vehicles you own or have permission to work on, and follow local regulations around OBD-II access.
