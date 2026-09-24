@@ -88,7 +88,7 @@ Plenty of headroom left.
 
 ## 📸 Gallery & Demos
 
-> 📌 Drop images and videos into `docs/media/` and update the paths below.
+> More pictures/videos coming soon after full assembly and recordings.
 
 ### The Board
 
@@ -116,7 +116,7 @@ _On-device dashboard running on the ILI9341_
 |                                                                                                |                                                                                  |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | ![Saleae capture — SD init](docs/media/saleae-sd-init.png)<br>_Saleae capture of SD card init_ | ![Saleae capture — IMU](docs/media/saleae-imu.png)<br>_IMU `WHO_AM_I` handshake_ |
-| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wires_                                          | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
+| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_                       | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
 | ![Blown fuses](docs/media/blown-fuses.jpg)<br>_The fuse doing its job_                         | ![Bench setup](docs/media/bench-setup.jpg)<br>_Bench setup_                      |
 
 ### V1 (For Reference)
