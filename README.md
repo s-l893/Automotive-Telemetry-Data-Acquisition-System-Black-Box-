@@ -72,6 +72,7 @@ V2 is the "do it properly" iteration:
 | Touch (XPT2046)                   | ⛔ Driver implemented (tap/swipe classification), but the touch hardware isn't cooperating — and I realized there isn't a good use for touch on this dash, so it's unused |
 | Fault management + IWDG           | ✅ Implemented                                                                                                                                                            |
 | CAN signal decoding               | 🟡 Raw frames are logged as-is; only signals with a reliable definition are decoded for the dashboard (the rest are blank — see [Design Decisions](#design-decisions))    |
+| Gear indicator                    | ✅ Solved without CAN — derived from the RPM/wheel-speed ratio (see [Design Decisions](#design-decisions))                                                                |
 | CAN bus-off recovery              | 🟡 Code written, not yet validated with a forced bus-off                                                                                                                  |
 
 **Resource usage (STM32F446RE, with the UI in place):**
@@ -87,15 +88,15 @@ Plenty of headroom left.
 
 ## 📸 Gallery & Demos
 
-> Pictures will be added soon! The custom enclosure needs to be 3D-printed and then assembled.
+> 📌 Drop images and videos into `docs/media/` and update the paths below.
 
 ### The Board
 
-|                                                                               |                                                                            |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| ![Altium schematic](docs/media/schematic.png)<br>_Schematic capture (Altium)_ | ![PCB layout](docs/media/pcb-layout.png)<br>_PCB layout_                   |
-| ![PCB 3D view](docs/media/pcb-3d.png)<br>_3D view_                            | ![Bare boards from JLCPCB](docs/media/pcb-bare.jpg)<br>_Fresh from JLCPCB_ |
-| ![Assembled rev 1](docs/media/rev1-assembled.jpg)<br>_Rev 1, assembled_       | ![Assembled rev 2](docs/media/rev2-assembled.jpg)<br>_Rev 2, assembled_    |
+|                                                                                            |                                                                            |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| ![Altium schematic](docs/media/schematic.png)<br>_Schematic (Altium, may differ with PCB)_ | ![PCB layout](docs/media/pcb_altium_2d.png)<br>_PCB layout_                |
+| ![PCB 3D view](docs/media/pcb_altium_3d.png)<br>_3D view_                                  | ![CAD model](docs/media/cad.png)<br>_CAD model_                            |
+| ![Assembled rev 1](docs/media/assembled_nocase.jpg)<br>_Assembled w/o case_                | ![Assembled rev 2](docs/media/rev2-assembled.jpg)<br>_Assembled with case_ |
 
 ### The Dashboard
 
@@ -115,8 +116,18 @@ _On-device dashboard running on the ILI9341_
 |                                                                                                |                                                                                  |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | ![Saleae capture — SD init](docs/media/saleae-sd-init.png)<br>_Saleae capture of SD card init_ | ![Saleae capture — IMU](docs/media/saleae-imu.png)<br>_IMU `WHO_AM_I` handshake_ |
-| ![Bodge wires](docs/media/bodge-wires.jpg)<br>_Bodge wires_                                    | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
+| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wires_                                          | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
 | ![Blown fuses](docs/media/blown-fuses.jpg)<br>_The fuse doing its job_                         | ![Bench setup](docs/media/bench-setup.jpg)<br>_Bench setup_                      |
+
+### V1 (For Reference)
+
+The original breadboard-and-Nucleo build this project grew out of. Full writeup: [Automotive-Telemetry-Data-Acquisition-System-Black-Box-](https://github.com/s-l893/Automotive-Telemetry-Data-Acquisition-System-Black-Box-).
+
+|                                                                                           |                                                                                  |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ![V1 breadboard build](docs/media/v1.jpg)<br>_Breadboard + Nucleo_                        | ![V1 OLED display](docs/media/v1-oled.jpg)<br>_SSD1306 OLED readout_             |
+| ![V1 heatmap output](docs/media/v1-heatmap.png)<br>_Python-generated RPM/G-force heatmap_ | ![V1 installed in car](docs/media/v1_incar_.jpg)<br>_Installed for a test drive_ |
+| ![Big lesson](docs/media/7v.jpg)<br>_Vehicle CAN Bus OFF due to < 9V_                     | ![New Battery](docs/media/battery.jpg)<br>_Was not cheap_                        |
 
 <!--
 Tip: to embed a video directly on GitHub, drag and drop the .mp4 into the README
@@ -227,6 +238,44 @@ V2 is a **bare-metal, non-blocking superloop**. Nothing in the main loop waits o
 
 **No touch input.** I wrote a touch driver (tap/swipe classification), but the touch hardware wasn't cooperating, and I realized there isn't really a good use for touch on a dash you glance at while driving. The driver stays in the tree as an unused module.
 
+**Gear derived from RPM/speed ratio, not CAN.** Reliable CAN signal definitions for the transmission's selected gear are impossible to find without a manual shifting mode on the 9.5th gen Accord V6 Sedan, as it is never broadcast on the F-CAN bus, so gear is computed instead: `ratio = engine RPM / wheel speed`, and each gear has its own identification window for `ratio`. The windows come from the gearbox's total reduction (transmission ratio × final drive) at each gear:
+
+| Gear | Transmission Ratio | Total Reduction (× final drive) | Typical Ratio | Identification Window |
+| ---- | ------------------ | ------------------------------- | ------------- | --------------------- |
+| 1st  | 3.359              | 13.238                          | ≈ 107.5       | R ≥ 85.0              |
+| 2nd  | 2.095              | 8.256                           | ≈ 67.1        | 55.0 ≤ R < 85.0       |
+| 3rd  | 1.485              | 5.852                           | ≈ 47.6        | 40.0 ≤ R < 55.0       |
+| 4th  | 1.065              | 4.197                           | ≈ 34.1        | 29.0 ≤ R < 40.0       |
+| 5th  | 0.754              | 2.971                           | ≈ 24.2        | 21.0 ≤ R < 29.0       |
+| 6th  | 0.556              | 2.191                           | ≈ 17.8        | R < 21.0              |
+
+This sidesteps the CAN-PID reliability problem entirely for gear display, at the cost of needing both RPM and an accurate wheel-speed signal at the same time.
+
+The ratio logic only runs while the transmission is in D or S range. Below 5.0 (speed unit), it reports gear 1 to cover creeping and standing starts:
+
+```c
+if (speed < 5.0f) {
+    gear = 1U; /* creeping / stopped in D/S */
+} else {
+    ratio = rpm / speed;
+    if (ratio >= 85.0f) {
+        gear = 1U;
+    } else if (ratio >= 55.0f) {
+        gear = 2U;
+    } else if (ratio >= 40.0f) {
+        gear = 3U;
+    } else if (ratio >= 29.0f) {
+        gear = 4U;
+    } else if (ratio >= 21.0f) {
+        gear = 5U;
+    } else {
+        gear = 6U;
+    }
+}
+```
+
+In any gear apart from D/S, the gear/subgear field is hidden entirely rather than fed through this logic — otherwise a stationary or coasting RPM/speed pair would bucket into a meaningless "gear."
+
 ---
 
 ## 🚨 Fault Handling
@@ -256,7 +305,7 @@ Sessions are logged as CSV to a FAT32 SD card. Each row contains the CAN frame f
 
 ## 🛠️ Build & Flash
 
-**Requirements:** STM32CubeIDE, STM32CubeMX (bundled), an ST-LINK (on the Nucleo), a serial terminal (PuTTY etc.) for debug output on USART2.
+**Requirements:** STM32CubeIDE, STM32CubeMX (bundled), an ST-LINK (on the Nucleo), a serial terminal (PuTTY etc.) for debug output on USART2 (pre-solder bridge modification for PA2 & PA3).
 
 1. **Clone the repository**
 
@@ -282,7 +331,7 @@ Sessions are logged as CSV to a FAT32 SD card. Each row contains the CAN frame f
 ## ⚠️ Safety Notes
 
 - **Keep the fuse in.** The 2 A blade fuse has saved me many times during board bring-up. Never bypass it.
-- **Do not connect LM2596 before all functions are validated.** Because of the missing output-side protection on the LM2596, do **not** have the USB as the sole power source for the circuit with the LM2596 buck converter soldered/connected. Until the fix lands, the OBD/CAN transceiver side is left unpowered/unwired from the STM32's USB power source during bench work. Alternatively, connect everything apart from the AMS1117 and you can continue to validate the firmware while on the PCB.
+- **Power via USB only on the current board revision.** Because of the missing output-side protection on the LM2596, do **not** have USB and the 12 V OBD-II input live at the same time. Until the fix lands, the OBD/CAN transceiver side is left unpowered/unwired during bench work.
 - **Planned fix:** a correctly oriented diode between the LM2596 output and the STM32 rail to diode-OR the two power sources.
 - **The logger must never transmit on the vehicle bus.** Keep the firmware's CAN silent-mode configuration intact.
 - Only use on vehicles you own or have permission to work on, and follow local regulations around OBD-II access.
@@ -297,18 +346,18 @@ Building V2 did not go smoothly. These are the big ones.
 
 ### PCB & Hardware
 
-- **DB9 port incorrectly wired (rev 2).** The DB9 footprint was partially mirrored or just wrong, so the board couldn't plug into the cable as designed. Fix: I built a **custom DB9 crossover cable**.
+- **DB9 port incorrectly wired (rev 2).** The DB9 footprint was mirrored, so the board couldn't plug into the cable as designed. Fix: I built a **custom DB9 crossover cable**.
 - **Fuse holder hole too small (rev 1).** The drill hole for the fuse holder was undersized on the first revision.
-- **Failed solder attempt on the first PCB: lifted pads, burnt connections, torn traces.**
+- **Failed solder attempt on the first PCB.**
 - **No diode for reverse-current protection on the LM2596.** Nothing sits between the buck converter's output and the STM32/ST-LINK rail, so powering over USB backfeeds the converter. The fix (a diode to OR the two supplies) is identified but not yet implemented on this revision — for now I power over USB only.
 - **PA2/PA3 interfering with USART2.** Solder bridges on the Nucleo tie these pins to USART2, which fought the display's DC/RESET lines. Fix: disable USART2 and add a bus-prep routine that releases those pins before the display uses them. **Lesson:** don't pick pins that silently double as other peripherals' defaults.
 
-### SD Card Troubles
+### SD Card Saga
 
 - **`CMD0` returning `0xFF`.** Debugged with a **Saleae logic analyzer**. An early false lead was that the card wasn't physically wired in during captures, so MISO was just being held high by the MCU's internal pull-up. The eventual real cause was a **bus conflict in the card init sequence between `CMD55` and `CMD41`**.
-- **MISO stuck low with the SPI SD module.** The module's level-shifting buffer (VHCT125) needs 4.5–5.5 V but was being fed from the 3.3 V regulator output. Original Fix: cut the trace and bodge-wire the buffer's VCC to the raw ~5 V rail. Still encountered issues, am still unsure if this was due to the following issue below or the module itself. **Lesson:** read the datasheet for every chip hiding on a "module."
-- **microSD SCK bodge wire.** The SCK line was intermittent (likely PCB damage or a lifted pad), so it needed a bodge wire — which eventually **broke after many re-solder attempts with the SPI SD module**. This was after originally using an SPI SD module.
-- **Soldered a microSD-to-SD card adapter directly** to the board as a workaround. Ugly, but it works.
+- **MISO stuck low with the SPI SD module.** The module's level-shifting buffer (VHCT125) needs 4.5–5.5 V but was being fed from the 3.3 V regulator output. Fix: cut the trace and bodge-wire the buffer's VCC to the raw ~5 V rail. **Lesson:** read the datasheet for every chip hiding on a "module."
+- **microSD SCK bodge wire.** The SCK line was intermittent (likely PCB damage or a lifted pad), so it needed a bodge wire — which eventually **broke after many re-solder attempts**. This was after originally using an SPI SD module.
+- **Soldered a microSD-to-SD card adapter directly** to the board as a workaround.
 
 ### Debugging
 
@@ -316,8 +365,8 @@ Building V2 did not go smoothly. These are the big ones.
 
 ### Vehicle & CAN
 
-- **V1: many of the car's control modules responding with dominant bits, draining the battery.** A floating CAN TXD line held the bus dominant, causing ECU contention and extreme battery drain (~7 V). This directly shaped V2's firmware-enforced silent CAN mode. Forced me to take a trip to Costco in one of London's frequent extreme snow squalls hauling back a 50 pound lead-acid battery.
-- **Very hard to find accurate manufacturer CAN information.** Manufacturer-specific CAN IDs, signal layouts, and PIDs aren't standardized or publicly documented, so figuring out what a given ID or request means takes serious digging (Major credit to Google Gemini Deep Research). This is the reason for the empty spots on the dashboard and for staying a passive listener.
+- **V1: many of the car's control modules responding with dominant bits, draining the battery.** A floating CAN TXD line held the bus dominant, causing ECU contention and extreme battery drain (~7 V). This directly shaped V2's firmware-enforced silent CAN mode.
+- **Very hard to find accurate manufacturer CAN information.** Manufacturer-specific CAN IDs, signal layouts, and PIDs aren't standardized or publicly documented, so figuring out what a given ID or request means takes serious digging. This is the reason for the empty spots on the dashboard and for staying a passive listener.
 
 ### Parts & Logistics
 
@@ -347,7 +396,7 @@ Smaller (but still educational) issues:
 Dash-style layout on the 320×240 ILI9341:
 
 - Transmission / engine coolant temperature
-- Gear + RPM, with shift lights near redline
+- Gear (derived from RPM/speed ratio, not CAN — see [Design Decisions](#design-decisions)) + RPM, with shift lights near redline
 - G-force (lateral, longitudinal) number display
 - Max acceleration / cornering stats
 - Fault / status box
