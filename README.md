@@ -154,7 +154,12 @@ YouTube or use a thumbnail image that links to the video.
 | **LDO**              | AMS1117-3.3                     | —             | 5 V → 3.3 V                                                                 |
 | **Debug**            | ST-LINK VCP                     | USART2        | Serial debug output                                                         |
 
-Display `DC` / `RESET` are on `PA2` / `PA3`. The display and SD card share SPI1; each driver re-asserts its own SPI mode at the start of every transaction, so they can coexist without a manual bus-reconfiguration step.
+Display `DC` / `RESET` are on `PA2` / `PA3`. For this to function, **solder bridges need to be unsoldered or soldered**:
+SB13: OPEN (OFF)
+SB14: OPEN (OFF)
+SB62: CLOSED (ON)
+SB63: CLOSED (ON).
+The display and SD card share SPI1; each driver re-asserts its own SPI mode at the start of every transaction, so they can coexist without a manual bus-reconfiguration step.
 
 ### Power & Protection
 

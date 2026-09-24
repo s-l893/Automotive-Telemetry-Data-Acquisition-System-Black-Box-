@@ -134,8 +134,8 @@ void SD_Logger_DrainCAN(void){
 		if (frame.id == 0x158 || frame.id == 0x17C){
 			int written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset,
 				"%lu,0x%03lX,%.1f,%.1f,%f,%f,%f,%d,%d,%d\n",
-				frame.timestamp, frame.id,
-				vehicle_state.values[SIG_RPM], vehicle_state.values[SIG_THROTTLE], gps.latitude, gps.longitude, gps.speed, imu.accel_x, imu.accel_y, imu.accel_z);
+				frame.timestamp, frame.id, 			// IMU divided by 16384 to convert to G
+				vehicle_state.values[SIG_RPM], vehicle_state.values[SIG_THROTTLE], gps.latitude, gps.longitude, gps.speed, imu.accel_x/16384.0f, imu.accel_y/16384.0f, imu.accel_z/16384.0f);
 			offset += written;
 			last_row_write_time = HAL_GetTick();
 		}
@@ -145,7 +145,7 @@ void SD_Logger_DrainCAN(void){
 		if ((HAL_GetTick() - last_row_write_time) >= 200){
 			int imu_written = snprintf(csv_buffer + offset, sizeof(csv_buffer) - offset,
 				"%lu,0x%03lX,%.1f,%.1f,%f,%f,%f,%d,%d,%d\n",
-				HAL_GetTick(), 0xFFFFUL, vehicle_state.values[SIG_RPM], vehicle_state.values[SIG_THROTTLE], gps.latitude, gps.longitude, gps.speed,	imu.accel_x, imu.accel_y, imu.accel_z);
+				HAL_GetTick(), 0xFFFFUL, vehicle_state.values[SIG_RPM], vehicle_state.values[SIG_THROTTLE], gps.latitude, gps.longitude, gps.speed,	imu.accel_x/16384.0f, imu.accel_y/16384.0f, imu.accel_z/16384.0f);
 			offset += imu_written;
 			last_row_write_time = HAL_GetTick();
 		}
