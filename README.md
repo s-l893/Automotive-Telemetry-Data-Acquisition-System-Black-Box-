@@ -20,6 +20,7 @@ A ground-up redesign of my [Automotive Black Box](https://github.com/s-l893/Auto
 - [Design Decisions](#design-decisions)
 - [Fault Handling](#fault-handling)
 - [Log Format](#log-format)
+- [Route Heatmap](#route-heatmap)
 - [Build & Flash](#build--flash)
 - [Safety Notes](#safety-notes)
 - [Major Issues](#major-issues)
@@ -88,15 +89,15 @@ Plenty of headroom left.
 
 ## 📸 Gallery & Demos
 
-> More pictures/videos coming soon after full assembly and recordings.
+> 📌 Drop images and videos into `docs/media/` and update the paths below.
 
 ### The Board
 
-|                                                                                            |                                                                            |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| ![Altium schematic](docs/media/schematic.png)<br>_Schematic (Altium, may differ with PCB)_ | ![PCB layout](docs/media/pcb_altium_2d.png)<br>_PCB layout_                |
-| ![PCB 3D view](docs/media/pcb_altium_3d.png)<br>_3D view_                                  | ![CAD model](docs/media/cad.png)<br>_CAD model_                            |
-| ![Assembled rev 1](docs/media/assembled_nocase.jpg)<br>_Assembled w/o case_                | ![Assembled rev 2](docs/media/rev2-assembled.jpg)<br>_Assembled with case_ |
+|                                                                               |                                                                         |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ![Altium schematic](docs/media/schematic.png)<br>_Schematic capture (Altium)_ | ![PCB layout](docs/media/pcb-layout.png)<br>_PCB layout_                |
+| ![PCB 3D view](docs/media/pcb-3d.png)<br>_3D view_                            | ![CAD model](docs/media/cad-model.png)<br>_CAD model_                   |
+| ![Assembled rev 1](docs/media/rev1-assembled.jpg)<br>_Rev 1, assembled_       | ![Assembled rev 2](docs/media/rev2-assembled.jpg)<br>_Rev 2, assembled_ |
 
 ### The Dashboard
 
@@ -116,7 +117,7 @@ _On-device dashboard running on the ILI9341_
 |                                                                                                |                                                                                  |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | ![Saleae capture — SD init](docs/media/saleae-sd-init.png)<br>_Saleae capture of SD card init_ | ![Saleae capture — IMU](docs/media/saleae-imu.png)<br>_IMU `WHO_AM_I` handshake_ |
-| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_                       | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
+| ![Bodge wires](docs/media/bodge-wires.jpg)<br>_Bodge wires_                                    | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
 | ![Blown fuses](docs/media/blown-fuses.jpg)<br>_The fuse doing its job_                         | ![Bench setup](docs/media/bench-setup.jpg)<br>_Bench setup_                      |
 
 ### V1 (For Reference)
@@ -125,9 +126,8 @@ The original breadboard-and-Nucleo build this project grew out of. Full writeup:
 
 |                                                                                           |                                                                                  |
 | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| ![V1 breadboard build](docs/media/v1.jpg)<br>_Breadboard + Nucleo_                        | ![V1 OLED display](docs/media/v1-oled.jpg)<br>_SSD1306 OLED readout_             |
-| ![V1 heatmap output](docs/media/v1-heatmap.png)<br>_Python-generated RPM/G-force heatmap_ | ![V1 installed in car](docs/media/v1_incar_.jpg)<br>_Installed for a test drive_ |
-| ![Big lesson](docs/media/7v.jpg)<br>_Vehicle CAN Bus OFF due to < 9V_                     | ![New Battery](docs/media/battery.jpg)<br>_Was not cheap_                        |
+| ![V1 breadboard build](docs/media/v1-breadboard.jpg)<br>_Breadboard + Nucleo_             | ![V1 OLED display](docs/media/v1-oled.jpg)<br>_SSD1306 OLED readout_             |
+| ![V1 heatmap output](docs/media/v1-heatmap.png)<br>_Python-generated RPM/G-force heatmap_ | ![V1 installed in car](docs/media/v1-in-car.jpg)<br>_Installed for a test drive_ |
 
 <!--
 Tip: to embed a video directly on GitHub, drag and drop the .mp4 into the README
@@ -154,12 +154,7 @@ YouTube or use a thumbnail image that links to the video.
 | **LDO**              | AMS1117-3.3                     | —             | 5 V → 3.3 V                                                                 |
 | **Debug**            | ST-LINK VCP                     | USART2        | Serial debug output                                                         |
 
-Display `DC` / `RESET` are on `PA2` / `PA3`. For this to function, **solder bridges need to be unsoldered or soldered**:
-SB13: OPEN (OFF)
-SB14: OPEN (OFF)
-SB62: CLOSED (ON)
-SB63: CLOSED (ON).
-The display and SD card share SPI1; each driver re-asserts its own SPI mode at the start of every transaction, so they can coexist without a manual bus-reconfiguration step.
+Display `DC` / `RESET` are on `PA2` / `PA3`. The display and SD card share SPI1; each driver re-asserts its own SPI mode at the start of every transaction, so they can coexist without a manual bus-reconfiguration step.
 
 ### Power & Protection
 
@@ -305,6 +300,19 @@ Sessions are logged as CSV to a FAT32 SD card. Each row contains the CAN frame f
 - **Sentinel rows** — `id = 0xFFFF`, `dlc = 0`, written every 200 ms of CAN silence so GPS/IMU data keep flowing
 
 > **Toolchain note:** float formatting via `snprintf` requires newlib-nano float support — add `-u _printf_float` under _MCU GCC Linker → Miscellaneous_.
+
+---
+
+## 🗺️ Route Heatmap
+
+`tools/V2/heatmap_script.py` turns a session CSV straight into a self-contained HTML map of the drive (real street tiles, via Folium/Leaflet) with a **layer toggle** to color the route by RPM, lateral G, or longitudinal G. Open the output file locally in a browser — it needs internet access each time for the map tiles.
+
+```bash
+pip install pandas folium branca
+python tools/heatmap_script.py LOG_000.CSV -o session_map.html
+```
+
+The rest is pretty self-explanatory from the `--help` output.
 
 ---
 
