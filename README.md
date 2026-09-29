@@ -89,22 +89,22 @@ Plenty of headroom left.
 
 ## 📸 Gallery & Demos
 
-> 📌 Drop images and videos into `docs/media/` and update the paths below.
+> More pictures/videos coming soon after full assembly and recordings.
 
 ### The Board
 
-|                                                                               |                                                                         |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| ![Altium schematic](docs/media/schematic.png)<br>_Schematic capture (Altium)_ | ![PCB layout](docs/media/pcb-layout.png)<br>_PCB layout_                |
-| ![PCB 3D view](docs/media/pcb-3d.png)<br>_3D view_                            | ![CAD model](docs/media/cad-model.png)<br>_CAD model_                   |
-| ![Assembled rev 1](docs/media/rev1-assembled.jpg)<br>_Rev 1, assembled_       | ![Assembled rev 2](docs/media/rev2-assembled.jpg)<br>_Rev 2, assembled_ |
+|                                                                                            |                                                                            |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| ![Altium schematic](docs/media/schematic.png)<br>_Schematic (Altium, may differ with PCB)_ | ![PCB layout](docs/media/pcb_altium_2d.png)<br>_PCB layout_                |
+| ![PCB 3D view](docs/media/pcb_altium_3d.png)<br>_3D view_                                  | ![CAD model](docs/media/cad.png)<br>_CAD model_                            |
+| ![Assembled rev 1](docs/media/assembled_nocase.jpg)<br>_Assembled w/o case_                | ![Assembled rev 2](docs/media/rev2-assembled.jpg)<br>_Assembled with case_ |
 
 ### The Dashboard
 
 ![Dashboard screenshot](docs/media/dash-photo.jpg)
 _On-device dashboard running on the ILI9341_
 
-🎬 **Dashboard demo:** [▶️ Watch the video](docs/media/dash-demo.mp4)
+🎬 **Dashboard demo:** [▶️ Watch the video](20260926_221141.mp4)
 
 ### In the Car
 
@@ -117,7 +117,7 @@ _On-device dashboard running on the ILI9341_
 |                                                                                                |                                                                                  |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | ![Saleae capture — SD init](docs/media/saleae-sd-init.png)<br>_Saleae capture of SD card init_ | ![Saleae capture — IMU](docs/media/saleae-imu.png)<br>_IMU `WHO_AM_I` handshake_ |
-| ![Bodge wires](docs/media/bodge-wires.jpg)<br>_Bodge wires_                                    | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
+| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_                       | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
 | ![Blown fuses](docs/media/blown-fuses.jpg)<br>_The fuse doing its job_                         | ![Bench setup](docs/media/bench-setup.jpg)<br>_Bench setup_                      |
 
 ### V1 (For Reference)
@@ -126,8 +126,9 @@ The original breadboard-and-Nucleo build this project grew out of. Full writeup:
 
 |                                                                                           |                                                                                  |
 | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| ![V1 breadboard build](docs/media/v1-breadboard.jpg)<br>_Breadboard + Nucleo_             | ![V1 OLED display](docs/media/v1-oled.jpg)<br>_SSD1306 OLED readout_             |
-| ![V1 heatmap output](docs/media/v1-heatmap.png)<br>_Python-generated RPM/G-force heatmap_ | ![V1 installed in car](docs/media/v1-in-car.jpg)<br>_Installed for a test drive_ |
+| ![V1 breadboard build](docs/media/v1.jpg)<br>_Breadboard + Nucleo_                        | ![V1 OLED display](docs/media/v1-oled.jpg)<br>_SSD1306 OLED readout_             |
+| ![V1 heatmap output](docs/media/v1-heatmap.png)<br>_Python-generated RPM/G-force heatmap_ | ![V1 installed in car](docs/media/v1_incar_.jpg)<br>_Installed for a test drive_ |
+| ![Big lesson](docs/media/7v.jpg)<br>_Vehicle CAN Bus OFF due to < 9V_                     | ![New Battery](docs/media/battery.jpg)<br>_Was not cheap_                        |
 
 <!--
 Tip: to embed a video directly on GitHub, drag and drop the .mp4 into the README
@@ -154,7 +155,14 @@ YouTube or use a thumbnail image that links to the video.
 | **LDO**              | AMS1117-3.3                     | —             | 5 V → 3.3 V                                                                 |
 | **Debug**            | ST-LINK VCP                     | USART2        | Serial debug output                                                         |
 
-Display `DC` / `RESET` are on `PA2` / `PA3`. The display and SD card share SPI1; each driver re-asserts its own SPI mode at the start of every transaction, so they can coexist without a manual bus-reconfiguration step.
+Display `DC` / `RESET` are on `PA2` / `PA3`. For this to function, **solder bridges need to be unsoldered or soldered**:
+
+- SB13: OPEN (OFF)
+- SB14: OPEN (OFF)
+- SB62: CLOSED (ON)
+- SB63: CLOSED (ON)
+
+The display and SD card share SPI1; each driver re-asserts its own SPI mode at the start of every transaction, so they can coexist without a manual bus-reconfiguration step.
 
 ### Power & Protection
 
@@ -309,7 +317,7 @@ Sessions are logged as CSV to a FAT32 SD card. Each row contains the CAN frame f
 
 ```bash
 pip install pandas folium branca
-python tools/heatmap_script.py LOG_000.CSV -o session_map.html
+python tools/V2/heatmap_script.py LOG_000.CSV -o session_map.html
 ```
 
 The rest is pretty self-explanatory from the `--help` output.
@@ -363,7 +371,7 @@ Building V2 did not go smoothly. These are the big ones.
 - **Fuse holder hole too small (rev 1).** The drill hole for the fuse holder was undersized on the first revision.
 - **Failed solder attempt on the first PCB.**
 - **No diode for reverse-current protection on the LM2596.** Nothing sits between the buck converter's output and the STM32/ST-LINK rail, so powering over USB backfeeds the converter. The fix (a diode to OR the two supplies) is identified but not yet implemented on this revision — for now I power over USB only.
-- **PA2/PA3 interfering with USART2.** Solder bridges on the Nucleo tie these pins to USART2, which fought the display's DC/RESET lines. Fix: disable USART2 and add a bus-prep routine that releases those pins before the display uses them. **Lesson:** don't pick pins that silently double as other peripherals' defaults.
+- **PA2/PA3 interfering with USART2.** Solder bridges on the Nucleo tie these pins to USART2, which fought the display's DC/RESET lines. Fix: disable USART2 and add a bus-prep routine that releases those pins before the display uses them (see the solder bridge states in [Hardware](#hardware)). **Lesson:** don't pick pins that silently double as other peripherals' defaults.
 
 ### SD Card Saga
 
@@ -378,7 +386,7 @@ Building V2 did not go smoothly. These are the big ones.
 
 ### Vehicle & CAN
 
-- **V1: many of the car's control modules responding with dominant bits, draining the battery.** A floating CAN TXD line held the bus dominant, causing ECU contention and extreme battery drain (~7 V). This directly shaped V2's firmware-enforced silent CAN mode.
+- **V1: many of the car's control modules responding with dominant bits, draining the battery.** A floating CAN TXD line held the bus dominant, causing ECU contention and extreme battery drain (~7 V) — low enough to trip the vehicle's own CAN bus-off protection (under ~9 V) and, ultimately, require a new battery. This directly shaped V2's firmware-enforced silent CAN mode.
 - **Very hard to find accurate manufacturer CAN information.** Manufacturer-specific CAN IDs, signal layouts, and PIDs aren't standardized or publicly documented, so figuring out what a given ID or request means takes serious digging. This is the reason for the empty spots on the dashboard and for staying a passive listener.
 
 ### Parts & Logistics
