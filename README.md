@@ -117,7 +117,7 @@ _On-device dashboard running on the ILI9341_
 |                                                                                                |                                                                                  |
 | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | ![Saleae capture — SD init](docs/media/saleae-sd-init.png)<br>_Saleae capture of SD card init_ | ![Saleae capture — IMU](docs/media/saleae-imu.png)<br>_IMU `WHO_AM_I` handshake_ |
-| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_                       | ![Custom DB9 cable](docs/media/db9-cable.jpg)<br>_Custom DB9 crossover cable_    |
+| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_                       | ![Custom DB9 cable](docs/media/db9.jpg)<br>_Custom DB9 crossover cable_          |
 | ![Blown fuses](docs/media/blown-fuses.jpg)<br>_The fuse doing its job_                         | ![Bench setup](docs/media/bench-setup.jpg)<br>_Bench setup_                      |
 
 ### V1 (For Reference)
@@ -151,7 +151,7 @@ YouTube or use a thumbnail image that links to the video.
 | **Display**          | ILI9341 (SPI TFT)               | SPI1          | Dashboard / status                                                          |
 | **Touch controller** | XPT2046 (on the display module) | SPI2          | Driver implemented but **not used** — see [Project Status](#project-status) |
 | **Storage**          | microSD (FAT32 via FatFs)       | SPI1 (shared) | Session logging                                                             |
-| **Buck converter**   | LM2596                          | —             | 12 V → ~5 V                                                                 |
+| **Buck converter**   | LM2596S                         | —             | 12 V → ~5 V                                                                 |
 | **LDO**              | AMS1117-3.3                     | —             | 5 V → 3.3 V                                                                 |
 | **Debug**            | ST-LINK VCP                     | USART2        | Serial debug output                                                         |
 
@@ -217,7 +217,7 @@ V2 is a **bare-metal, non-blocking superloop**. Nothing in the main loop waits o
 | `fault.c/.h`           | Fault flags and severity handling                                         |
 | `sd_logger.c/.h`       | FatFs lifecycle, filename generation, CSV row formatting and drain        |
 | `user_diskio.c`        | Hand-written SD-over-SPI FatFs disk driver                                |
-| `imu`                  | MPU6050 init, `WHO_AM_I` handshake, calibration, offset-corrected reads   |
+| `imu.c`                | MPU6050 init, `WHO_AM_I` handshake, calibration, offset-corrected reads   |
 | `gps_driver.c/.h`      | Interrupt-driven NMEA receive, RMC parsing, decimal-degree conversion     |
 | `display.c`            | ILI9341 init, windowing, chunked fills, logical-coordinate rotation layer |
 | `touch_driver.c/.h`    | XPT2046 reads and tap/swipe classification (implemented, **unused**)      |
@@ -376,9 +376,9 @@ Building V2 did not go smoothly. These are the big ones.
 ### SD Card Saga
 
 - **`CMD0` returning `0xFF`.** Debugged with a **Saleae logic analyzer**. An early false lead was that the card wasn't physically wired in during captures, so MISO was just being held high by the MCU's internal pull-up. The eventual real cause was a **bus conflict in the card init sequence between `CMD55` and `CMD41`**.
-- **MISO stuck low with the SPI SD module.** The module's level-shifting buffer (VHCT125) needs 4.5–5.5 V but was being fed from the 3.3 V regulator output. Fix: cut the trace and bodge-wire the buffer's VCC to the raw ~5 V rail. **Lesson:** read the datasheet for every chip hiding on a "module."
-- **microSD SCK bodge wire.** The SCK line was intermittent (likely PCB damage or a lifted pad), so it needed a bodge wire — which eventually **broke after many re-solder attempts**. This was after originally using an SPI SD module.
-- **Soldered a microSD-to-SD card adapter directly** to the board as a workaround.
+- **MISO stuck low with the SPI SD module.** The module's level-shifting buffer (VHCT125) needs 4.5–5.5 V but was being fed from the 3.3 V regulator output. Fix: cut the trace and bodge-wire the buffer's VCC to the raw ~5 V rail. However, f_mount was still failing. **Lesson:** read the datasheet for every chip hiding on a "module."
+- **Soldered a microSD-to-SD card adapter directly** to the board as a workaroundk to bypass any issues stemming from the VHCT125.
+- **microSD SCK bodge wire.** The SCK line was intermittent (likely PCB damage or a lifted pad from swapping out modules), so it needed a bodge wire. This was after originally using the SPI SD module and it finally saw FR_OK from f_mount.
 
 ### Debugging
 
@@ -399,14 +399,14 @@ Building V2 did not go smoothly. These are the big ones.
 
 Smaller (but still educational) issues:
 
-| Problem                             | Root cause                                                                                                                   | Fix / Lesson                                                                                                    |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Rev 1: blown fuses + smoke**      | LM2596 buck module had an internally failed switch — near-0 Ω short between IN+ and OUT+                                     | Parked rev 1; continued on breadboard + bare Nucleo. Always check a power module before mating it to the board. |
-| **Rev 1: I²C SDA/SCL swapped**      | Hardware I²C1 pin roles are fixed in silicon; I routed them crossed                                                          | Cut traces, cross with jumper wires. Ultimately led to PCB redesign. **Check AF pin roles before routing.**     |
-| **Altium / fab issues**             | TVS orientation error, CAN transceiver `VREF` miswired, vault-component locking, binary-format drill file rejected by JLCPCB | Fixed in schematic/library; used a local integrated library; exported ASCII drill files                         |
-| **Display landscape broken**        | ILI9341 clone ignores `MADCTL` MV bit                                                                                        | Software coordinate-rotation layer, verified with a 4-corner test                                               |
-| **CAN silence timeout never fired** | `can_frame_received_flag` was never cleared                                                                                  | Clear the flag on consumption — same pattern later reused for GPS                                               |
-| **GPS stalled / garbled**           | Wrong UART handle, bad `strtok` delimiters, no overflow recovery, non-RMC sentences fed to parser                            | Correct `huart4`, RMC filter, overflow recovery, UART-instance guard in the shared RX callback                  |
+| Problem                             | Root cause                                                                                                                          | Fix / Lesson                                                                                                    |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Rev 1: blown fuses + smoke**      | LM2596 buck module had an internally failed switch (from lack of diode for reverse voltage protection) — short between IN+ and OUT+ | Parked rev 1; continued on breadboard + bare Nucleo. Always check a power module before mating it to the board. |
+| **Rev 1: I²C SDA/SCL swapped**      | Hardware I²C1 pin roles are fixed in silicon; I routed them crossed                                                                 | Cut traces, cross with jumper wires. Ultimately led to PCB redesign. **Check AF pin roles before routing.**     |
+| **Altium / fab issues**             | TVS orientation error, CAN transceiver `VREF` miswired, vault-component locking, binary-format drill file rejected by JLCPCB        | Fixed in schematic/library; used a local integrated library; exported ASCII drill files                         |
+| **Display landscape broken**        | ILI9341 clone ignores `MADCTL` MV bit                                                                                               | Software coordinate-rotation layer, verified with a 4-corner test                                               |
+| **CAN silence timeout never fired** | `can_frame_received_flag` was never cleared                                                                                         | Clear the flag on consumption — same pattern later reused for GPS                                               |
+| **GPS stalled / garbled**           | Wrong UART handle, bad `strtok` delimiters, no overflow recovery, non-RMC sentences fed to parser                                   | Correct `huart4`, RMC filter, overflow recovery, UART-instance guard in the shared RX callback                  |
 
 **Big takeaways:** check which peripherals a pin silently doubles as _before_ routing it, read the datasheet for every chip hiding on a "module," and always put a fuse in the power path.
 
@@ -416,13 +416,13 @@ Smaller (but still educational) issues:
 
 Dash-style layout on the 320×240 ILI9341:
 
-- Transmission / engine coolant temperature
+- Transmission / engine coolant temperature (ATF Temp not working, impossible on passive CAN sniffer)
 - Gear (derived from RPM/speed ratio, not CAN — see [Design Decisions](#design-decisions)) + RPM, with shift lights near redline
 - G-force (lateral, longitudinal) number display
 - Max acceleration / cornering stats
 - Fault / status box
 - GPS locked/unlocked
-- VCM active/inactive
+- VCM active/inactive (Likely not working due to unknown CAN PID)
 
 There is no touch input — the dash is glance-only by design (see [Design Decisions](#design-decisions)).
 
