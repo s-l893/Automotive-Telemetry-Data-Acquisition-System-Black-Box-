@@ -101,10 +101,10 @@ Plenty of headroom left.
 
 ### The Dashboard
 
-![Dashboard screenshot](docs/media/dash-photo.jpg)
+![Dashboard screenshot](docs/media/dashboard_night.jpg)
 _On-device dashboard running on the ILI9341_
 
-🎬 **Dashboard demo:** [▶️ Watch the video](20260926_221141.mp4)
+🎬 **Dashboard demo (old case revision caused major fitment and GPS connectivity issues):** [▶️ Watch the video](https://drive.google.com/file/d/1BaeC5I66tRMac5gDI5y1ClZdo_Or2Xcx/view?usp=sharing)
 
 ### In the Car
 
