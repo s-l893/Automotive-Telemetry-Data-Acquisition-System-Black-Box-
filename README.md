@@ -93,11 +93,11 @@ Plenty of headroom left.
 
 ### The Board
 
-|                                                                                            |                                                                            |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| ![Altium schematic](docs/media/schematic.png)<br>_Schematic (Altium, may differ with PCB)_ | ![PCB layout](docs/media/pcb_altium_2d.png)<br>_PCB layout_                |
-| ![PCB 3D view](docs/media/pcb_altium_3d.png)<br>_3D view_                                  | ![CAD model](docs/media/cad.png)<br>_CAD model_                            |
-| ![Assembled rev 1](docs/media/assembled_nocase.jpg)<br>_Assembled w/o case_                | ![Assembled rev 2](docs/media/rev2-assembled.jpg)<br>_Assembled with case_ |
+|                                                                                            |                                                                              |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| ![Altium schematic](docs/media/schematic.png)<br>_Schematic (Altium, may differ with PCB)_ | ![PCB layout](docs/media/pcb_altium_2d.png)<br>_PCB layout_                  |
+| ![PCB 3D view](docs/media/pcb_altium_3d.png)<br>_3D view_                                  | ![CAD model](docs/media/cad.png)<br>_CAD model_                              |
+| ![Assembled rev 1](docs/media/assembled_nocase.jpg)<br>_Assembled w/o case_                | ![Assembled rev 2](docs/media/mostly_assembled.jpg)<br>_Assembled with case_ |
 
 ### The Dashboard
 
@@ -114,21 +114,22 @@ _On-device dashboard running on the ILI9341_
 
 ### Bring-Up & Debugging
 
-|     |     |
-| --- | --- |
+![Saleae capture — SD debug (SPI breakout)](docs/media/sd_debug.png)
+_Saleae capture of SD card init (SPI breakout)_
 
-| ![Saleae capture — SD init](docs/media/sd_debug.png)<br>_Saleae capture of SD card init_|
+|                                                                          |                                                                         |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_ | ![Custom DB9 cable](docs/media/db9.jpg)<br>_Custom DB9 crossover cable_ |
 
 ### V1 (For Reference)
 
 The original breadboard-and-Nucleo build this project grew out of. Full writeup: [Automotive-Telemetry-Data-Acquisition-System-Black-Box-](https://github.com/s-l893/Automotive-Telemetry-Data-Acquisition-System-Black-Box-).
 
-|                                                                                           |                                                                                  |
-| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| ![V1 breadboard build](docs/media/v1.jpg)<br>_Breadboard + Nucleo_                        | ![V1 OLED display](docs/media/v1-oled.jpg)<br>_SSD1306 OLED readout_             |
-| ![V1 heatmap output](docs/media/v1-heatmap.png)<br>_Python-generated RPM/G-force heatmap_ | ![V1 installed in car](docs/media/v1_incar_.jpg)<br>_Installed for a test drive_ |
-| ![Big lesson](docs/media/7v.jpg)<br>_Vehicle CAN Bus OFF due to < 9V_                     | ![New Battery](docs/media/battery.jpg)<br>_Was not cheap_                        |
+|                                                                                           |                                                                                 |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| ![V1 breadboard build](docs/media/v1.jpg)<br>_Breadboard + Nucleo_                        | ![V1 OLED display](docs/media/v1-oled.jpg)<br>_SSD1306 OLED readout_            |
+| ![V1 heatmap output](docs/media/v1-heatmap.png)<br>_Python-generated RPM/G-force heatmap_ | ![V1 installed in car](docs/media/v1_incar.jpg)<br>_Installed for a test drive_ |
+| ![Big lesson](docs/media/7v.jpg)<br>_Vehicle CAN Bus OFF due to < 9V_                     | ![New Battery](docs/media/battery.jpg)<br>_Was not cheap_                       |
 
 <!--
 Tip: to embed a video directly on GitHub, drag and drop the .mp4 into the README
@@ -377,7 +378,7 @@ Building V2 did not go smoothly. These are the big ones.
 
 - **`CMD0` returning `0xFF`.** Debugged with a **Saleae logic analyzer**. An early false lead was that the card wasn't physically wired in during captures, so MISO was just being held high by the MCU's internal pull-up. The eventual real cause was a **bus conflict in the card init sequence between `CMD55` and `CMD41`**.
 - **MISO stuck low with the SPI SD module.** The module's level-shifting buffer (VHCT125) needs 4.5–5.5 V but was being fed from the 3.3 V regulator output. Fix: cut the trace and bodge-wire the buffer's VCC to the raw ~5 V rail. However, f_mount was still failing. **Lesson:** read the datasheet for every chip hiding on a "module."
-- **Soldered a microSD-to-SD card adapter directly** to the board as a workaroundk to bypass any issues stemming from the VHCT125.
+- **Soldered a microSD-to-SD card adapter directly** to the board as a workaround to bypass any issues stemming from the VHCT125.
 - **microSD SCK bodge wire.** The SCK line was intermittent (likely PCB damage or a lifted pad from swapping out modules), so it needed a bodge wire. This was after originally using the SPI SD module and it finally saw FR_OK from f_mount.
 
 ### Debugging
