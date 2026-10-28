@@ -2,7 +2,7 @@
 
 A ground-up redesign of my [Automotive Black Box](https://github.com/s-l893/Automotive-Telemetry-Data-Acquisition-System-Black-Box-) vehicle data logger. V2 moves from a breadboard prototype to a **custom Altium-designed PCB**, from a simple application loop to a **non-blocking, interrupt-driven bare-metal architecture**, and from a small OLED to a **color TFT dashboard**. It logs CAN bus traffic, GPS position/speed, and IMU acceleration to an SD card, with a firmware-enforced safety model designed around the mistakes V1 taught me.
 
-![Project Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Project Status](https://img.shields.io/badge/status-complete-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-STM32F446RE-orange)
 ![Firmware](https://img.shields.io/badge/firmware-bare--metal%20C-lightgrey)
@@ -114,11 +114,11 @@ _On-device dashboard running on the ILI9341_
 
 ### Bring-Up & Debugging
 
-|                                                                                                |                                                                                  |
-| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| ![Saleae capture — SD init](docs/media/saleae-sd-init.png)<br>_Saleae capture of SD card init_ | ![Saleae capture — IMU](docs/media/saleae-imu.png)<br>_IMU `WHO_AM_I` handshake_ |
-| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_                       | ![Custom DB9 cable](docs/media/db9.jpg)<br>_Custom DB9 crossover cable_          |
-| ![Blown fuses](docs/media/blown-fuses.jpg)<br>_The fuse doing its job_                         | ![Bench setup](docs/media/bench-setup.jpg)<br>_Bench setup_                      |
+|     |     |
+| --- | --- |
+
+| ![Saleae capture — SD init](docs/media/sd_debug.png)<br>_Saleae capture of SD card init_|
+| ![Bodge wires](docs/media/bodge.jpg)<br>_Bodge wire connecting SPI1 SCK_ | ![Custom DB9 cable](docs/media/db9.jpg)<br>_Custom DB9 crossover cable_ |
 
 ### V1 (For Reference)
 
@@ -369,7 +369,7 @@ Building V2 did not go smoothly. These are the big ones.
 
 - **DB9 port incorrectly wired (rev 2).** The DB9 footprint was mirrored, so the board couldn't plug into the cable as designed. Fix: I built a **custom DB9 crossover cable**.
 - **Fuse holder hole too small (rev 1).** The drill hole for the fuse holder was undersized on the first revision.
-- **Failed solder attempt on the first PCB.**
+- **Failed solder attempt on the first PCB resulting in lifted pads & traces.**
 - **No diode for reverse-current protection on the LM2596.** Nothing sits between the buck converter's output and the STM32/ST-LINK rail, so powering over USB backfeeds the converter. The fix (a diode to OR the two supplies) is identified but not yet implemented on this revision — for now I power over USB only.
 - **PA2/PA3 interfering with USART2.** Solder bridges on the Nucleo tie these pins to USART2, which fought the display's DC/RESET lines. Fix: disable USART2 and add a bus-prep routine that releases those pins before the display uses them (see the solder bridge states in [Hardware](#hardware)). **Lesson:** don't pick pins that silently double as other peripherals' defaults.
 
