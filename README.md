@@ -108,7 +108,7 @@ _On-device dashboard running on the ILI9341_
 
 ### Heatmap (File not part of repo due to privacy reasons)
 
-![Real Heatmap Sample](cruise.png)
+![Real Heatmap Sample](docs/media/cruise.png)
 
 🎬 **Test drive:** [▶️ Watch the video](docs/media/test-drive.mp4)
 
