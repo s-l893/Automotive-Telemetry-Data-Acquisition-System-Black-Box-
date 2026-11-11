@@ -106,9 +106,9 @@ _On-device dashboard running on the ILI9341_
 
 🎬 **Dashboard demo (old case revision caused major fitment and GPS connectivity issues):** [▶️ Watch the video](https://drive.google.com/file/d/1BaeC5I66tRMac5gDI5y1ClZdo_Or2Xcx/view?usp=sharing)
 
-### In the Car
+### Heatmap (File not part of repo due to privacy reasons)
 
-![Installed in the car](docs/media/in-car.jpg)
+![Real Heatmap Sample](cruise.png)
 
 🎬 **Test drive:** [▶️ Watch the video](docs/media/test-drive.mp4)
 
